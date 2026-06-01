@@ -197,9 +197,55 @@ async function fetchTimetableEntries(className, section) {
   }
 
   const data = await teacherApi(
-    `/api/teacher/timetable?class=${encodeURIComponent(className)}&section=${encodeURIComponent(sec)}`
+    `${getApiBase()}/api/teacher/timetable?class=${encodeURIComponent(className)}&section=${encodeURIComponent(sec)}`
   );
   return data.entries || [];
+}
+
+async function fetchStudentsForClass(className, section) {
+  const sec = normalizeSectionValue(section);
+  for (const cls of classNameVariants(className)) {
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'students'), where('class', '==', cls), where('section', '==', sec))
+      );
+      if (!snap.empty) {
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+    } catch (error) {
+      console.warn(`Students query failed for ${cls}/${sec}:`, error);
+    }
+  }
+  const data = await teacherApi(
+    `${getApiBase()}/api/teacher/students?class=${encodeURIComponent(className)}&section=${encodeURIComponent(sec)}`
+  );
+  return data.students || [];
+}
+
+async function fetchAttendanceRecords(className, section, dateStr) {
+  const sec = normalizeSectionValue(section);
+  for (const cls of classNameVariants(className)) {
+    try {
+      let q = query(
+        collection(db, 'attendance'),
+        where('class', '==', cls),
+        where('section', '==', sec)
+      );
+      if (dateStr) {
+        q = query(q, where('date', '==', dateStr));
+      }
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+    } catch (error) {
+      console.warn(`Attendance query failed for ${cls}/${sec}:`, error);
+    }
+  }
+  let path = `${getApiBase()}/api/teacher/attendance?class=${encodeURIComponent(className)}&section=${encodeURIComponent(sec)}`;
+  if (dateStr) path += `&date=${encodeURIComponent(dateStr)}`;
+  const data = await teacherApi(path);
+  return data.records || [];
 }
 
 function renderTimetableGrid(entries, tableDiv) {
@@ -326,13 +372,12 @@ async function showStudents(user) {
     let html = '';
     let foundStudents = false;
     for (const cs of classSectionPairs) {
-      const studentsSnap = await getDocs(query(collection(db, 'students'), where('class', '==', cs.class), where('section', '==', cs.section)));
-      if (studentsSnap.empty) continue;
+      const students = await fetchStudentsForClass(cs.class, cs.section);
+      if (!students.length) continue;
       foundStudents = true;
       html += `<div class="student-group"><h3>Class ${cs.class} - Section ${cs.section}</h3>`;
       html += '<table class="styled-table"><thead><tr><th>Name</th><th>Parent Email</th><th>Bus</th></tr></thead><tbody>';
-      studentsSnap.forEach(stuDoc => {
-        const s = stuDoc.data();
+      students.forEach(s => {
         html += `<tr><td>${s.name || ''}</td><td>${s.parentEmail || ''}</td><td>${s.bus || ''}</td></tr>`;
       });
       html += '</tbody></table></div>';
@@ -359,8 +404,8 @@ async function showAttendance(user) {
     // If no students found for any class-section, show a helpful message
     let foundStudents = false;
     for (const cs of classSectionPairs) {
-      const studentsSnap = await getDocs(query(collection(db, 'students'), where('class', '==', cs.class), where('section', '==', cs.section)));
-      if (!studentsSnap.empty) {
+      const students = await fetchStudentsForClass(cs.class, cs.section);
+      if (students.length) {
         foundStudents = true;
         break;
       }
@@ -394,17 +439,15 @@ async function showAttendance(user) {
       lastClass = cls; lastSection = section;
       const tableDiv = document.getElementById('attendance-table');
       tableDiv.innerHTML = '<div class="loading">Loading students...</div>';
-      // Fetch students for this class/section
-      const studentsSnap = await getDocs(query(collection(db, 'students'), where('class', '==', cls), where('section', '==', section)));
-      if (studentsSnap.empty) {
+      try {
+      const students = await fetchStudentsForClass(cls, section);
+      if (!students.length) {
         tableDiv.innerHTML = '<div class="empty">No students found in this class/section.</div>';
         return;
       }
-      // Fetch existing attendance for this date/class/section
-      const attSnap = await getDocs(query(collection(db, 'attendance'), where('class', '==', cls), where('section', '==', section), where('date', '==', dateStr)));
+      const attRecords = await fetchAttendanceRecords(cls, section, dateStr);
       const attMap = {};
-      attSnap.forEach(doc => {
-        const a = doc.data();
+      attRecords.forEach(a => {
         attMap[a.studentId] = a.status;
       });
       let html = `<form class="attendance-form" data-class="${cls}" data-section="${section}">
@@ -414,14 +457,13 @@ async function showAttendance(user) {
           <button type="button" id="select-all-left" style="padding: 4px 12px; font-size: 0.95em; border-radius: 4px; background: #ff9800; color: #fff; border: none; cursor: pointer;">Select All Left for Home</button>
         </div>
         <table class="styled-table" style="min-width: 500px; text-align: center;"><thead><tr><th>Name</th><th>Present</th><th>Absent</th><th>Left for Home</th></tr></thead><tbody>`;
-      studentsSnap.forEach(stuDoc => {
-        const s = stuDoc.data();
-        const status = attMap[stuDoc.id] || 'Present';
+      students.forEach(s => {
+        const status = attMap[s.id] || 'Present';
         html += `<tr style="text-align: center;">
           <td style="text-align: left;">${s.name || ''}</td>
-          <td style="vertical-align: middle;"><input type="checkbox" class="att-present" data-student-id="${stuDoc.id}" style="margin: 0 auto; display: block;" ${status === 'Present' ? 'checked' : ''}></td>
-          <td style="vertical-align: middle;"><input type="checkbox" class="att-absent" data-student-id="${stuDoc.id}" style="margin: 0 auto; display: block;" ${status === 'Absent' ? 'checked' : ''}></td>
-          <td style="vertical-align: middle;"><input type="checkbox" class="att-left" data-student-id="${stuDoc.id}" style="margin: 0 auto; display: block;" ${status === 'Left for Home' ? 'checked' : ''}></td>
+          <td style="vertical-align: middle;"><input type="checkbox" class="att-present" data-student-id="${s.id}" style="margin: 0 auto; display: block;" ${status === 'Present' ? 'checked' : ''}></td>
+          <td style="vertical-align: middle;"><input type="checkbox" class="att-absent" data-student-id="${s.id}" style="margin: 0 auto; display: block;" ${status === 'Absent' ? 'checked' : ''}></td>
+          <td style="vertical-align: middle;"><input type="checkbox" class="att-left" data-student-id="${s.id}" style="margin: 0 auto; display: block;" ${status === 'Left for Home' ? 'checked' : ''}></td>
         </tr>`;
       });
       html += '</tbody></table>';
@@ -487,9 +529,8 @@ async function showAttendance(user) {
         statusDiv.textContent = 'Saving...';
         try {
           let attendanceRecords = [];
-          for (const stuDoc of studentsSnap.docs) {
-            const studentId = stuDoc.id;
-            const stuData = stuDoc.data();
+          for (const stuData of students) {
+            const studentId = stuData.id;
             let status = 'Present';
             if (document.querySelector(`.att-absent[data-student-id='${studentId}']`).checked) status = 'Absent';
             else if (document.querySelector(`.att-left[data-student-id='${studentId}']`).checked) status = 'Left for Home';
@@ -553,29 +594,42 @@ async function showAttendance(user) {
           statusDiv.textContent = 'Error: ' + err.message;
         }
       };
-      await renderAttendanceHistory(cls, section);
+      try {
+        await renderAttendanceHistory(cls, section);
+      } catch (histErr) {
+        console.warn('Attendance history failed:', histErr);
+        const historyDiv = document.getElementById('attendance-history');
+        if (historyDiv) {
+          historyDiv.innerHTML = '<div class="empty">Could not load attendance history. Daily marking still works above.</div>';
+        }
+      }
+      } catch (err) {
+        console.error(err);
+        tableDiv.innerHTML = `<div class="error">Could not load attendance: ${err.message}</div>`;
+      }
     }
     async function renderAttendanceHistory(cls, section) {
       const historyDiv = document.getElementById('attendance-history');
       historyDiv.innerHTML = '<div class="loading">Loading attendance history...</div>';
-      // Fetch all attendance for this class/section
-      const attSnap = await getDocs(query(collection(db, 'attendance'), where('class', '==', cls), where('section', '==', section)));
-      if (attSnap.empty) {
+      const attRecords = await fetchAttendanceRecords(cls, section);
+      if (!attRecords.length) {
         historyDiv.innerHTML = '<div class="empty">No attendance records found.</div>';
         return;
       }
-      // Fetch student names
-      const studentsSnap = await getDocs(query(collection(db, 'students'), where('class', '==', cls), where('section', '==', section)));
+      window.attSnapCache = {
+        docs: attRecords.map(r => ({
+          id: r.id,
+          data: () => r,
+        })),
+      };
+      const studentList = await fetchStudentsForClass(cls, section);
       const students = {};
-      studentsSnap.forEach(stuDoc => {
-        const s = stuDoc.data();
-        students[stuDoc.id] = s.name || stuDoc.id;
+      studentList.forEach(s => {
+        students[s.id] = s.name || s.id;
       });
-      // Group by date and by student
       const attendanceByDate = {};
       const studentSummary = {};
-      attSnap.forEach(docSnap => {
-        const a = docSnap.data();
+      attRecords.forEach(a => {
         if (!attendanceByDate[a.date]) attendanceByDate[a.date] = {};
         attendanceByDate[a.date][a.studentId] = a.status;
         if (!studentSummary[a.studentId]) studentSummary[a.studentId] = { present: 0, absent: 0, left: 0 };

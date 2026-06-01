@@ -73,9 +73,10 @@ service cloud.firestore {
       // Admins can read/write all attendance
       allow read, write: if hasRole('admin');
       
-      // Teachers can read their attendance records and write only their own records
-      allow read: if hasRole('teacher') && resource.data.teacherId == request.auth.uid;
-      allow create, update: if hasRole('teacher') && request.resource.data.teacherId == request.auth.uid;
+      // Teachers read class/section attendance (queries cannot filter by teacherId per doc)
+      allow read: if hasRole('teacher');
+      allow create, update: if hasRole('teacher')
+        && request.resource.data.teacherId == request.auth.uid;
       
       // Parents can only read attendance for their children
       allow read: if hasRole('parent') && 
@@ -112,9 +113,10 @@ service cloud.firestore {
       // Admins can read/write all marks
       allow read, write: if hasRole('admin');
       
-      // Teachers can read marks they created and write only their own entries
-      allow read: if hasRole('teacher') && resource.data.teacherId == request.auth.uid;
-      allow create, update: if hasRole('teacher') && request.resource.data.teacherId == request.auth.uid;
+      // Teachers read class marks; writes must set their teacherId
+      allow read: if hasRole('teacher');
+      allow create, update: if hasRole('teacher')
+        && request.resource.data.teacherId == request.auth.uid;
       
       // Parents can only read marks for their children
       allow read: if hasRole('parent') && 

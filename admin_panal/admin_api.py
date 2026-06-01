@@ -122,6 +122,54 @@ def _teacher_assigned_to_class(profile, class_name, section):
     return False
 
 
+def _class_name_variants(class_name):
+    class_name = (class_name or '').strip()
+    variants = {class_name}
+    if class_name and not class_name.lower().startswith('class '):
+        variants.add(f'Class {class_name}')
+    elif class_name.lower().startswith('class '):
+        variants.add(class_name[6:].strip())
+    return variants
+
+
+def _ensure_teacher_can_access_class(decoded, profile, class_name, section):
+    """Return None if allowed, else (message, status_code)."""
+    class_name = (class_name or '').strip()
+    section = (section or '').strip().upper()
+    if not class_name or not section:
+        return ('class and section are required', 400)
+
+    if profile.get('role') == 'admin':
+        return None
+
+    uid = decoded['uid']
+    if _teacher_assigned_to_class(profile, class_name, section):
+        return None
+
+    for cls in _class_name_variants(class_name):
+        own = (
+            _db.collection('timetable')
+            .where('teacherId', '==', uid)
+            .where('class', '==', cls)
+            .where('section', '==', section)
+            .limit(1)
+            .stream()
+        )
+        if any(True for _ in own):
+            return None
+
+    for c in _db.collection('classes').where('teacherId', '==', uid).stream():
+        data = c.to_dict()
+        if _teacher_assigned_to_class(
+            {'className': data.get('name', ''), 'section': data.get('section', '')},
+            class_name,
+            section,
+        ):
+            return None
+
+    return ('Not assigned to this class/section', 403)
+
+
 def _filter_fields(data, allowed):
     if not isinstance(data, dict):
         return {}
@@ -201,58 +249,13 @@ def register_admin_routes(app):
 
         class_name = (request.args.get('class') or '').strip()
         section = (request.args.get('section') or '').strip().upper()
-        if not class_name or not section:
-            return jsonify({'error': 'class and section are required'}), 400
-
-        uid = decoded['uid']
-        is_admin = profile.get('role') == 'admin'
-        assigned = _teacher_assigned_to_class(profile, class_name, section)
-
-        if not is_admin and not assigned:
-            # Also allow if teacher has any period in this class/section
-            own = (
-                _db.collection('timetable')
-                .where('teacherId', '==', uid)
-                .where('class', '==', class_name)
-                .where('section', '==', section)
-                .limit(1)
-                .stream()
-            )
-            if not any(True for _ in own):
-                # Try alternate class name format
-                alt_class = class_name if class_name.lower().startswith('class ') else f'Class {class_name}'
-                own = (
-                    _db.collection('timetable')
-                    .where('teacherId', '==', uid)
-                    .where('class', '==', alt_class)
-                    .where('section', '==', section)
-                    .limit(1)
-                    .stream()
-                )
-                if not any(True for _ in own):
-                    # Check classes collection for class teacher assignment
-                    classes = _db.collection('classes').where('teacherId', '==', uid).stream()
-                    for c in classes:
-                        data = c.to_dict()
-                        if _teacher_assigned_to_class(
-                            {'className': data.get('name', ''), 'section': data.get('section', '')},
-                            class_name,
-                            section,
-                        ):
-                            assigned = True
-                            break
-                    if not assigned:
-                        return jsonify({'error': 'Not assigned to this class/section'}), 403
-
-        class_variants = {class_name}
-        if not class_name.lower().startswith('class '):
-            class_variants.add(f'Class {class_name}')
-        else:
-            class_variants.add(class_name.replace('Class ', '').replace('class ', ''))
+        denied = _ensure_teacher_can_access_class(decoded, profile, class_name, section)
+        if denied:
+            return jsonify({'error': denied[0]}), denied[1]
 
         entries = []
         seen_ids = set()
-        for cls in class_variants:
+        for cls in _class_name_variants(class_name):
             snap = (
                 _db.collection('timetable')
                 .where('class', '==', cls)
@@ -268,3 +271,67 @@ def register_admin_routes(app):
                 entries.append(row)
 
         return jsonify({'entries': entries})
+
+    @app.route('/api/teacher/students', methods=['GET'])
+    def teacher_students():
+        decoded, profile, err = _verify_teacher()
+        if err:
+            return jsonify({'error': err[0]}), err[1]
+
+        class_name = (request.args.get('class') or '').strip()
+        section = (request.args.get('section') or '').strip().upper()
+        denied = _ensure_teacher_can_access_class(decoded, profile, class_name, section)
+        if denied:
+            return jsonify({'error': denied[0]}), denied[1]
+
+        students = []
+        seen_ids = set()
+        for cls in _class_name_variants(class_name):
+            snap = (
+                _db.collection('students')
+                .where('class', '==', cls)
+                .where('section', '==', section)
+                .stream()
+            )
+            for doc in snap:
+                if doc.id in seen_ids:
+                    continue
+                seen_ids.add(doc.id)
+                row = doc.to_dict()
+                row['id'] = doc.id
+                students.append(row)
+
+        return jsonify({'students': students})
+
+    @app.route('/api/teacher/attendance', methods=['GET'])
+    def teacher_attendance():
+        decoded, profile, err = _verify_teacher()
+        if err:
+            return jsonify({'error': err[0]}), err[1]
+
+        class_name = (request.args.get('class') or '').strip()
+        section = (request.args.get('section') or '').strip().upper()
+        date_str = (request.args.get('date') or '').strip()
+        denied = _ensure_teacher_can_access_class(decoded, profile, class_name, section)
+        if denied:
+            return jsonify({'error': denied[0]}), denied[1]
+
+        records = []
+        seen_ids = set()
+        for cls in _class_name_variants(class_name):
+            q = (
+                _db.collection('attendance')
+                .where('class', '==', cls)
+                .where('section', '==', section)
+            )
+            if date_str:
+                q = q.where('date', '==', date_str)
+            for doc in q.stream():
+                if doc.id in seen_ids:
+                    continue
+                seen_ids.add(doc.id)
+                row = doc.to_dict()
+                row['id'] = doc.id
+                records.append(row)
+
+        return jsonify({'records': records})

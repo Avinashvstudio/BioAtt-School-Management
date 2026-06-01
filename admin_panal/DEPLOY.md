@@ -141,7 +141,8 @@ Open http://127.0.0.1:5001
 | Issue | Fix |
 |-------|-----|
 | Login works locally, not on deploy | Add deploy URL to Firebase Authorized domains |
-| Permission denied on Firestore | Publish `firebase-rules-updated.txt` |
+| Permission denied on Firestore | Publish `firebase-rules-updated.txt` (teachers need read on `attendance`, `timetable`, `students`) |
+| Teacher attendance stuck on “Loading students…” | Publish rules above **and** redeploy Render so `/api/teacher/students` and `/api/teacher/attendance` are available |
 | Admin save fails | Set `FIREBASE_SERVICE_ACCOUNT_JSON` on Render |
 | Emails not sent | Set Gmail app password; check `GMAIL_*` env vars |
 | Render sleeps on free tier | First visit may take ~30s to wake up |
