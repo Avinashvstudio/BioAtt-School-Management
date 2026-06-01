@@ -35,10 +35,16 @@ async function fetchMyStudents(user) {
       }
     } catch (error) {
       console.warn(`Students query failed for ${qEmail}:`, error);
+      if (!shouldUseApiFallback(error)) throw error;
     }
   }
   const data = await parentApi(`${getApiBase()}/api/parent/students`);
   return data.students || [];
+}
+
+function shouldUseApiFallback(error) {
+  const msg = (error && error.message) || '';
+  return msg.includes('index') || msg.includes('permission') || msg.includes('insufficient');
 }
 
 async function fetchStudentAttendance(studentId) {
@@ -51,6 +57,7 @@ async function fetchStudentAttendance(studentId) {
     return rows;
   } catch (error) {
     console.warn('Attendance query failed:', error);
+    if (!shouldUseApiFallback(error)) throw error;
   }
   const data = await parentApi(
     `${getApiBase()}/api/parent/attendance?studentId=${encodeURIComponent(studentId)}`
@@ -70,6 +77,7 @@ async function fetchStudentMarks(studentId) {
     return rows;
   } catch (error) {
     console.warn('Marks query failed:', error);
+    if (!shouldUseApiFallback(error)) throw error;
   }
   const data = await parentApi(
     `${getApiBase()}/api/parent/marks?studentId=${encodeURIComponent(studentId)}`
@@ -192,8 +200,9 @@ async function showOverview(user) {
       featureDiv.innerHTML = `
         <h2>Student Overview</h2>
         <div class="empty">
-          <p>No students found associated with your email address.</p>
-          <p>Please contact the school administration to link your account with your child's records.</p>
+          <p>No students found for <strong>${user.email}</strong>.</p>
+          <p>Demo parent login: <strong>emily.davis@demo.com</strong> (not david) / password <strong>1234567890</strong></p>
+          <p>Ask admin to set your child's <em>parent email</em> to match your login exactly.</p>
         </div>
       `;
       return;
@@ -265,7 +274,10 @@ async function showOverview(user) {
     
   } catch (e) {
     console.error(e);
-    featureDiv.innerHTML = '<h2>Student Overview</h2><div class="error">Error loading student data.</div>';
+    const hint = (e.message || '').includes('index')
+      ? ' Hard-refresh the page (Ctrl+F5) after Render deploy, or create the Firestore index from the console link in DevTools.'
+      : '';
+    featureDiv.innerHTML = `<h2>Student Overview</h2><div class="error">Error loading student data: ${e.message || e}.${hint}</div>`;
   }
 }
 
