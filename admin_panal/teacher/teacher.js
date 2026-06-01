@@ -78,7 +78,14 @@ function splitCsv(value) {
   return value.split(',').map(s => s.trim()).filter(Boolean);
 }
 
+function normalizeSectionCode(section) {
+  const raw = String(section || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!raw) return '';
+  return raw.split(/[,;/|&]+/)[0].slice(0, 4);
+}
+
 function addClassSectionPair(target, seen, className, section) {
+  section = normalizeSectionCode(section);
   if (!className || !section) return;
   const key = `${className}__${section}`;
   if (seen.has(key)) return;
@@ -117,11 +124,15 @@ async function getTeacherAssignments(user) {
     const classesSnap = await getDocs(query(collection(db, 'classes'), where('teacherId', '==', user.uid)));
     classesSnap.forEach(classDoc => {
       const c = classDoc.data();
-      const sections = splitCsv(c.section);
       const className = c.name;
-      if (!sections.length) addClassSectionPair(pairs, seen, className, c.section);
-      for (const sec of sections) {
-        addClassSectionPair(pairs, seen, className, sec);
+      const sections = splitCsv(c.section).map(normalizeSectionCode).filter(Boolean);
+      if (!sections.length) {
+        const one = normalizeSectionCode(c.section);
+        if (one) addClassSectionPair(pairs, seen, className, one);
+      } else {
+        for (const sec of sections) {
+          addClassSectionPair(pairs, seen, className, sec);
+        }
       }
     });
   } catch (error) {
