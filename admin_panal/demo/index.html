@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo - BioAtt School Attendance System</title>
+  <link rel="stylesheet" href="../common/style.css">
+  <style>
+    .demo-hero {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 4rem 2rem;
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    
+    .demo-hero h1 {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    
+    .demo-hero p {
+      font-size: 1.2rem;
+      opacity: 0.9;
+    }
+    
+    .demo-features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin: 3rem 0;
+    }
+    
+    .feature-card {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      text-align: center;
+      transition: transform 0.2s;
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-5px);
+    }
+    
+    .feature-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    
+    .demo-actions {
+      text-align: center;
+      margin: 3rem 0;
+    }
+    
+    .btn-primary {
+      background: #007bff;
+      color: white;
+      padding: 1rem 2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      margin: 0 1rem;
+      text-decoration: none;
+      display: inline-block;
+      transition: background 0.2s;
+    }
+    
+    .btn-primary:hover {
+      background: #0056b3;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+      padding: 1rem 2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      margin: 0 1rem;
+      text-decoration: none;
+      display: inline-block;
+      transition: background 0.2s;
+    }
+    
+    .btn-secondary:hover {
+      background: #545b62;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-hero">
+    <h1>🎓 BioAtt School Attendance System</h1>
+    <p>Complete School Management Solution with Multi-Role Access</p>
+  </div>
+  
+  <div class="container">
+    <div class="demo-features">
+      <div class="feature-card">
+        <div class="feature-icon">👑</div>
+        <h3>Admin Portal</h3>
+        <p>Complete system control, user management, and comprehensive reporting</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">👩‍🏫</div>
+        <h3>Teacher Portal</h3>
+        <p>Class management, attendance tracking, and student performance monitoring</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">👨‍👩‍👧‍👦</div>
+        <h3>Parent Portal</h3>
+        <p>Real-time attendance tracking and communication with teachers</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">🚌</div>
+        <h3>Driver Portal</h3>
+        <p>Bus route management and student transportation tracking</p>
+      </div>
+    </div>
+    
+    <div class="demo-actions">
+      <h2>🚀 Get Started with Demo</h2>
+      <p>Experience the full system with sample data</p>
+      
+      <a href="demo-setup.html" class="btn-primary">Setup Demo Data</a>
+      <a href="../common/login.html" class="btn-secondary">Go to Login</a>
+    </div>
+    
+    <div class="demo-actions">
+      <h2>🔑 Demo Credentials</h2>
+      <p>Use these accounts to explore different roles:</p>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; border-left: 4px solid #007bff;">
+          <strong>Admin:</strong> admin@demo.com / admin123
+        </div>
+        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; border-left: 4px solid #28a745;">
+          <strong>Teacher:</strong> sarah.johnson@demo.com / teacher123
+        </div>
+        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; border-left: 4px solid #ffc107;">
+          <strong>Parent:</strong> emily.davis@demo.com / parent123
+        </div>
+        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; border-left: 4px solid #dc3545;">
+          <strong>Driver:</strong> david.rodriguez@demo.com / driver123
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

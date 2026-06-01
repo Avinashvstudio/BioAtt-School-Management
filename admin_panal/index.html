@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BioAtt Attendance - Complete School Management Solution</title>
+  <link rel="stylesheet" href="common/style.css">
+  <link rel="stylesheet" href="common/auth-theme.css">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    /* Reset and Base Styles */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'DM Sans', 'Segoe UI', Arial, sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Navigation */
+    .navbar {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: rgba(37, 56, 88, 0.95);
+      backdrop-filter: blur(10px);
+      z-index: 9999;
+      transition: all 0.3s ease;
+      padding: 1rem 0;
+    }
+
+    .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 2rem;
+    }
+
+    .nav-logo {
+      color: white;
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+
+    .nav-menu {
+      display: flex;
+      list-style: none;
+      gap: 2rem;
+    }
+
+    .nav-menu a {
+      color: white;
+      text-decoration: none;
+      transition: color 0.3s ease;
+      cursor: pointer;
+    }
+
+    .nav-menu a:hover {
+      color: #667eea;
+    }
+
+    /* Hero Section */
+    .hero-section {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-align: center;
+      padding: 8rem 2rem 4rem 2rem;
+      position: relative;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .hero-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+      animation: float 20s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-title {
+      font-size: 4rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      animation: slideInUp 1s ease-out;
+    }
+
+    .hero-subtitle {
+      font-size: 1.5rem;
+      opacity: 0.9;
+      margin-bottom: 2rem;
+      animation: slideInUp 1s ease-out 0.2s both;
+    }
+
+    .hero-description {
+      font-size: 1.2rem;
+      max-width: 800px;
+      margin: 0 auto 3rem auto;
+      line-height: 1.6;
+      animation: slideInUp 1s ease-out 0.4s both;
+    }
+
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 3rem;
+      margin-top: 3rem;
+      animation: slideInUp 1s ease-out 0.6s both;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 2.5rem;
+      font-weight: bold;
+      display: block;
+    }
+
+    .stat-label {
+      font-size: 1rem;
+      opacity: 0.8;
+    }
+
+    /* Animations */
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideInLeft {
+      from {
+        opacity: 0;
+        transform: translateX(-50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes slideInRight {
+      from {
+        opacity: 0;
+        transform: translateX(50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes bounceIn {
+      0% {
+        opacity: 0;
+        transform: scale(0.3);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.05);
+      }
+      70% {
+        transform: scale(0.9);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    /* Section Styles */
+    .section {
+      padding: 5rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 2.5rem;
+      color: #253858;
+      margin-bottom: 3rem;
+      position: relative;
+    }
+
+    .section-title::after {
+      content: '';
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 4px;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      border-radius: 2px;
+    }
+
+    /* Problem Solution Section */
+    .problem-solution {
+      background: #f8f9fa;
+      padding: 5rem 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .problem-solution .section-title {
+      color: #253858;
+    }
+
+    .ps-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
+    }
+
+    .problem-card, .solution-card {
+      background: white;
+      padding: 3rem;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .problem-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+      background: linear-gradient(90deg, #e74c3c, #f39c12);
+    }
+
+    .solution-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+      background: linear-gradient(90deg, #27ae60, #2ecc71);
+    }
+
+    .ps-icon {
+      font-size: 3rem;
+      margin-bottom: 1.5rem;
+      display: block;
+    }
+
+    .problem-card .ps-icon {
+      color: #e74c3c;
+    }
+
+    .solution-card .ps-icon {
+      color: #27ae60;
+    }
+
+    .ps-title {
+      font-size: 1.8rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      color: #253858;
+    }
+
+    .ps-description {
+      color: #666;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    .ps-list {
+      list-style: none;
+    }
+
+    .ps-list li {
+      padding: 0.5rem 0;
+      color: #555;
+      position: relative;
+      padding-left: 2rem;
+    }
+
+    .ps-list li:before {
+      position: absolute;
+      left: 0;
+      top: 0.5rem;
+      font-family: "Font Awesome 6 Free";
+      font-weight: 900;
+    }
+
+    .problem-card .ps-list li:before {
+      content: "✗";
+      color: #e74c3c;
+    }
+
+    .solution-card .ps-list li:before {
+      content: "✓";
+      color: #27ae60;
+    }
+
+    /* Panels Section */
+    .panels-section {
+      background: white;
+      position: relative;
+      z-index: 1;
+    }
+
+    .panels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 2.5rem;
+      margin-top: 3rem;
+    }
+
+    .panel-card {
+      background: white;
+      border-radius: 20px;
+      padding: 2.5rem;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+      transition: all 0.4s ease;
+      border: 1px solid #e1e5e9;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .panel-card:hover::before {
+      opacity: 1;
+    }
+
+    .panel-card:hover {
+      transform: translateY(-10px) scale(1.02);
+      box-shadow: 0 25px 60px rgba(0,0,0,0.15);
+    }
+
+    .panel-icon {
+      font-size: 3.5rem;
+      margin-bottom: 1.5rem;
+      display: block;
+      transition: transform 0.3s ease;
+    }
+
+    .panel-card:hover .panel-icon {
+      transform: scale(1.1);
+    }
+
+    .panel-title {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: #253858;
+      margin-bottom: 1rem;
+    }
+
+    .panel-description {
+      color: #666;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    .panel-features {
+      list-style: none;
+      padding: 0;
+      margin-bottom: 2rem;
+      flex-grow: 1;
+    }
+
+    .panel-features li {
+      padding: 0.5rem 0;
+      color: #555;
+      position: relative;
+      padding-left: 2rem;
+      transition: color 0.3s ease;
+    }
+
+    .panel-features li:before {
+      content: "✓";
+      color: #4CAF50;
+      font-weight: bold;
+      position: absolute;
+      left: 0;
+      transition: transform 0.3s ease;
+    }
+
+    .panel-card:hover .panel-features li:before {
+      transform: scale(1.2);
+    }
+
+    .panel-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1rem 2rem;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: block;
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
+      margin-top: auto;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel-button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .panel-button:hover::before {
+      left: 100%;
+    }
+
+    .panel-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+    }
+
+    /* Features Section */
+    .features-section {
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      padding: 5rem 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2.5rem;
+      margin-top: 3rem;
+    }
+
+    .feature-item {
+      background: white;
+      padding: 2.5rem;
+      border-radius: 20px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-item::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .feature-item:hover::before {
+      opacity: 1;
+    }
+
+    .feature-item:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    }
+
+    .feature-icon {
+      font-size: 3rem;
+      margin-bottom: 1.5rem;
+      color: #667eea;
+      transition: transform 0.3s ease;
+    }
+
+    .feature-item:hover .feature-icon {
+      transform: scale(1.1) rotate(5deg);
+    }
+
+    .feature-title {
+      font-size: 1.4rem;
+      font-weight: bold;
+      color: #253858;
+      margin-bottom: 1rem;
+    }
+
+    .feature-text {
+      color: #666;
+      line-height: 1.6;
+    }
+
+    /* Pricing Section */
+    .pricing-section {
+      background: white;
+      padding: 5rem 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .pricing-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 3rem;
+      border-radius: 20px;
+      text-align: center;
+      max-width: 600px;
+      margin: 0 auto;
+      box-shadow: 0 20px 50px rgba(102, 126, 234, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pricing-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+      animation: rotate 20s linear infinite;
+    }
+
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .pricing-content {
+      position: relative;
+      z-index: 2;
+    }
+
+    .pricing-title {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+    }
+
+    .pricing-price {
+      font-size: 3rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+    }
+
+    .pricing-description {
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+      opacity: 0.9;
+    }
+
+    .pricing-features {
+      list-style: none;
+      margin-bottom: 2rem;
+    }
+
+    .pricing-features li {
+      padding: 0.5rem 0;
+      opacity: 0.9;
+    }
+
+    .pricing-features li:before {
+      content: "✓";
+      margin-right: 0.5rem;
+      color: #4CAF50;
+    }
+
+    .pricing-cta {
+      background: white;
+      color: #667eea;
+      padding: 1rem 2rem;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .pricing-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    /* Contact Section */
+    .contact-section {
+      background: #253858;
+      color: white;
+      padding: 5rem 2rem;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .contact-content {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .contact-title {
+      font-size: 2.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .contact-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+      margin-top: 3rem;
+    }
+
+    .contact-item {
+      padding: 2rem;
+      background: rgba(255,255,255,0.1);
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+
+    .contact-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      color: #667eea;
+    }
+
+    .contact-text {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    .website-links {
+      margin-top: 2rem;
+    }
+
+    .website-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem 1.5rem;
+      background: rgba(255,255,255,0.15);
+      color: white;
+      text-decoration: none;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(10px);
+    }
+
+    .website-link:hover {
+      background: rgba(255,255,255,0.25);
+      transform: translateY(-3px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      color: white;
+    }
+
+    .website-link i {
+      font-size: 1.2rem;
+    }
+
+    .website-link span {
+      font-weight: 500;
+      font-size: 1rem;
+    }
+
+    /* Footer */
+    .footer {
+      background: #1a252f;
+      color: white;
+      text-align: center;
+      padding: 3rem 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .footer-content {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .footer-title {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .footer-description {
+      opacity: 0.8;
+      margin-bottom: 2rem;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .footer-links a {
+      color: white;
+      text-decoration: none;
+      opacity: 0.8;
+      transition: opacity 0.3s ease;
+    }
+
+    .footer-links a:hover {
+      opacity: 1;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2.5rem;
+      }
+      
+      .hero-subtitle {
+        font-size: 1.2rem;
+      }
+      
+      .ps-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+      
+      .panels-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+      
+      .features-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+      
+      .hero-stats {
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+      
+      .nav-menu {
+        display: none;
+      }
+    }
+
+    /* Scroll Animations */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.6s ease;
+    }
+
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .slide-in-left {
+      opacity: 0;
+      transform: translateX(-50px);
+      transition: all 0.6s ease;
+    }
+
+    .slide-in-left.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .slide-in-right {
+      opacity: 0;
+      transform: translateX(50px);
+      transition: all 0.6s ease;
+    }
+
+    .slide-in-right.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .bounce-in {
+      opacity: 0;
+      transform: scale(0.3);
+      transition: all 0.6s ease;
+    }
+
+    .bounce-in.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="nav-logo">BioAtt Attendance</div>
+      <ul class="nav-menu">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#problem-solution">Problem & Solution</a></li>
+        <li><a href="#panels">Panels</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero-section" id="overview">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+      <h1 class="hero-title">BioAtt Attendance</h1>
+      <p class="hero-subtitle">Revolutionary School Management System</p>
+      <p class="hero-description">
+        Transform your school's attendance management with our innovative, cost-effective solution. 
+        Replace expensive biometric hardware with cutting-edge smartphone technology that delivers 
+        superior results at a fraction of the cost.
+      </p>
+             <div class="hero-stats">
+         <div class="stat-item">
+           <span class="stat-number">₹200</span>
+           <span class="stat-label">Per Student</span>
+         </div>
+         <div class="stat-item">
+           <span class="stat-number">90%</span>
+           <span class="stat-label">Cost Savings</span>
+         </div>
+         <div class="stat-item">
+           <span class="stat-number">24/7</span>
+           <span class="stat-label">Access</span>
+         </div>
+       </div>
+       
+       <div class="company-credibility" style="margin-top: 3rem; padding: 2rem; background: rgba(255,255,255,0.1); border-radius: 15px; backdrop-filter: blur(10px);">
+         <p style="font-size: 1.1rem; margin-bottom: 1rem; opacity: 0.9;">
+           <strong>Developed by Vaar Digital Innovation</strong> - A modern technology startup specializing in innovative digital solutions
+         </p>
+         <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+           <a href="https://vaardi.in/" target="_blank" style="color: white; text-decoration: none; padding: 0.5rem 1rem; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; transition: all 0.3s ease;">
+             <i class="fas fa-globe" style="margin-right: 0.5rem;"></i>Company Website
+           </a>
+           <a href="https://vundakotiavinash.in/" target="_blank" style="color: white; text-decoration: none; padding: 0.5rem 1rem; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; transition: all 0.3s ease;">
+             <i class="fas fa-user-tie" style="margin-right: 0.5rem;"></i>Developer Portfolio
+           </a>
+         </div>
+       </div>
+    </div>
+  </section>
+
+  <!-- Problem & Solution Section -->
+  <section class="problem-solution" id="problem-solution">
+    <div class="section">
+      <h2 class="section-title">The Problem & Our Solution</h2>
+      <div class="ps-grid">
+        <div class="problem-card fade-in">
+          <i class="fas fa-exclamation-triangle ps-icon"></i>
+          <h3 class="ps-title">Traditional Biometric Systems</h3>
+          <p class="ps-description">
+            Schools face significant challenges with conventional attendance systems that are 
+            expensive, inflexible, and often unreliable.
+          </p>
+          <ul class="ps-list">
+            <li>High hardware costs (₹50,000 - ₹2,00,000 per device)</li>
+            <li>Complex installation and maintenance</li>
+            <li>Limited scalability and flexibility</li>
+            <li>Frequent hardware failures and repairs</li>
+            <li>Difficult to upgrade or modify</li>
+            <li>High electricity consumption</li>
+          </ul>
+        </div>
+        
+        <div class="solution-card fade-in">
+          <i class="fas fa-lightbulb ps-icon"></i>
+          <h3 class="ps-title">BioAtt Smart Solution</h3>
+          <p class="ps-description">
+            Our innovative approach leverages existing smartphone technology to deliver 
+            superior attendance management at minimal cost.
+          </p>
+          <ul class="ps-list">
+            <li>Affordable pricing (₹200 per student)</li>
+            <li>Easy setup with existing devices</li>
+            <li>Unlimited scalability and flexibility</li>
+            <li>99.9% reliability with cloud backup</li>
+            <li>Instant updates and new features</li>
+            <li>Environmentally friendly solution</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Panels Section -->
+  <section class="panels-section" id="panels">
+    <div class="section">
+      <h2 class="section-title">Complete Management Ecosystem</h2>
+      <p style="text-align: center; color: #666; font-size: 1.2rem; margin-bottom: 3rem; max-width: 800px; margin-left: auto; margin-right: auto;">
+        Our comprehensive system provides dedicated interfaces for every stakeholder in your school, 
+        ensuring seamless communication and efficient management.
+      </p>
+      
+      <div class="panels-grid">
+        <!-- Admin Panel -->
+        <div class="panel-card fade-in">
+          <i class="fas fa-user-tie panel-icon"></i>
+          <h3 class="panel-title">Admin Panel</h3>
+          <p class="panel-description">
+            Complete school management system for administrators with comprehensive control over all aspects.
+          </p>
+          <ul class="panel-features">
+            <li>User Management & Role Assignment</li>
+            <li>Student & Staff Records Management</li>
+            <li>Real-time Attendance Analytics</li>
+            <li>Class & Timetable Management</li>
+            <li>Advanced Reporting & Notifications</li>
+            <li>System Configuration & Settings</li>
+          </ul>
+          <a href="/admin_panal/common/login.html" class="panel-button">Access Admin Panel</a>
+        </div>
+
+        <!-- Teacher Panel -->
+        <div class="panel-card fade-in">
+          <i class="fas fa-chalkboard-teacher panel-icon"></i>
+          <h3 class="panel-title">Teacher Panel</h3>
+          <p class="panel-description">
+            Dedicated interface for teachers to manage classes, attendance, and student progress efficiently.
+          </p>
+          <ul class="panel-features">
+            <li>Personal Class Timetables</li>
+            <li>Student Attendance Management</li>
+            <li>Marks & Grades Entry</li>
+            <li>Performance Analytics</li>
+            <li>Communication with Parents</li>
+            <li>Resource Management</li>
+          </ul>
+          <a href="/admin_panal/common/login.html" class="panel-button">Access Teacher Panel</a>
+        </div>
+
+        <!-- Parent Panel -->
+        <div class="panel-card fade-in">
+          <i class="fas fa-users panel-icon"></i>
+          <h3 class="panel-title">Parent Panel</h3>
+          <p class="panel-description">
+            Stay connected with your child's education through real-time updates and comprehensive information.
+          </p>
+          <ul class="panel-features">
+            <li>Real-time Attendance Tracking</li>
+            <li>Academic Progress Monitoring</li>
+            <li>Class Timetables & Schedules</li>
+            <li>School Notifications & Updates</li>
+            <li>Fee Payment & Financial Status</li>
+            <li>Direct Communication with Teachers</li>
+          </ul>
+          <a href="/admin_panal/common/login.html" class="panel-button">Access Parent Panel</a>
+        </div>
+
+        <!-- Driver Panel -->
+        <div class="panel-card fade-in">
+          <i class="fas fa-bus panel-icon"></i>
+          <h3 class="panel-title">Driver Panel</h3>
+          <p class="panel-description">
+            Manage bus routes, track student pickup/drop-off, and ensure safe transportation with real-time updates.
+          </p>
+          <ul class="panel-features">
+            <li>Route Management & Optimization</li>
+            <li>Real-time Student Tracking</li>
+            <li>Attendance Marking for Transport</li>
+            <li>GPS Location Services</li>
+            <li>Emergency Notifications</li>
+            <li>Transport Analytics & Reports</li>
+          </ul>
+          <a href="/admin_panal/common/login.html" class="panel-button">Access Driver Panel</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features-section" id="features">
+    <div class="section">
+      <h2 class="section-title">Advanced Features & Capabilities</h2>
+      <p style="text-align: center; color: #666; font-size: 1.2rem; margin-bottom: 3rem; max-width: 800px; margin-left: auto; margin-right: auto;">
+        Discover the powerful features that make BioAtt Attendance the smart choice for modern schools.
+      </p>
+      
+      <div class="features-grid">
+        <div class="feature-item fade-in">
+          <i class="fas fa-mobile-alt feature-icon"></i>
+          <h4 class="feature-title">Smart Mobile App</h4>
+          <p class="feature-text">
+            Android app with advanced photo recognition technology using smartphone cameras. 
+            No additional hardware required - just use existing devices.
+          </p>
+        </div>
+        
+        <div class="feature-item fade-in">
+          <i class="fas fa-shield-alt feature-icon"></i>
+          <h4 class="feature-title">Enterprise Security</h4>
+          <p class="feature-text">
+            Firebase-powered authentication with role-based access control, encrypted data transmission, 
+            and secure cloud storage for maximum protection.
+          </p>
+        </div>
+        
+        <div class="feature-item fade-in">
+          <i class="fas fa-chart-line feature-icon"></i>
+          <h4 class="feature-title">Real-time Analytics</h4>
+          <p class="feature-text">
+            Instant attendance reports, performance analytics, and customizable dashboards 
+            for data-driven decision making and improved school management.
+          </p>
+        </div>
+        
+        <div class="feature-item fade-in">
+          <i class="fas fa-envelope feature-icon"></i>
+          <h4 class="feature-title">Smart Notifications</h4>
+          <p class="feature-text">
+            Automated email notifications, WhatsApp integration, and real-time alerts 
+            to keep parents and staff informed about important updates.
+          </p>
+        </div>
+        
+        <div class="feature-item fade-in">
+          <i class="fas fa-coins feature-icon"></i>
+          <h4 class="feature-title">Cost-Effective Solution</h4>
+          <p class="feature-text">
+            Save up to 90% compared to traditional biometric systems. 
+            Affordable pricing with no hidden costs or maintenance fees.
+          </p>
+        </div>
+        
+        <div class="feature-item fade-in">
+          <i class="fas fa-cloud feature-icon"></i>
+          <h4 class="feature-title">Cloud Infrastructure</h4>
+          <p class="feature-text">
+            Built on Google Firebase for reliability, scalability, and global accessibility. 
+            Automatic backups and 99.9% uptime guarantee.
+          </p>
+        </div>
+
+        <div class="feature-item fade-in">
+          <i class="fas fa-clock feature-icon"></i>
+          <h4 class="feature-title">24/7 Availability</h4>
+          <p class="feature-text">
+            Round-the-clock access to attendance data, reports, and system management. 
+            No downtime or maintenance windows to worry about.
+          </p>
+        </div>
+
+        <div class="feature-item fade-in">
+          <i class="fas fa-sync-alt feature-icon"></i>
+          <h4 class="feature-title">Automatic Sync</h4>
+          <p class="feature-text">
+            Real-time synchronization across all devices and platforms. 
+            Changes made anywhere are instantly reflected everywhere.
+          </p>
+        </div>
+
+        <div class="feature-item fade-in">
+          <i class="fas fa-download feature-icon"></i>
+          <h4 class="feature-title">Export & Reports</h4>
+          <p class="feature-text">
+            Generate comprehensive reports in multiple formats (PDF, Excel, CSV). 
+            Customizable templates and automated report scheduling.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Section -->
+  <section class="pricing-section" id="pricing">
+    <div class="section">
+      <h2 class="section-title">Simple, Transparent Pricing</h2>
+      <div class="pricing-card bounce-in">
+        <div class="pricing-content">
+          <h3 class="pricing-title">Per Student License</h3>
+          <div class="pricing-price">₹200</div>
+          <p class="pricing-description">
+            One-time payment per student with lifetime access to all features and updates.
+          </p>
+          <ul class="pricing-features">
+            <li>Full access to all panels and features</li>
+            <li>Unlimited attendance records</li>
+            <li>Real-time notifications and reports</li>
+            <li>Cloud storage and backup</li>
+            <li>24/7 technical support</li>
+            <li>Regular feature updates</li>
+            <li>No recurring fees or hidden costs</li>
+          </ul>
+          <a href="#contact" class="pricing-cta">Get Started Today</a>
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-top: 3rem; color: #666;">
+        <p style="font-size: 1.1rem; margin-bottom: 1rem;">
+          <strong>Special Offers Available:</strong>
+        </p>
+        <ul style="list-style: none; display: inline-block; text-align: left;">
+          <li>• Bulk discounts for large enrollments</li>
+          <li>• Multi-year contract benefits</li>
+          <li>• Custom enterprise solutions</li>
+          <li>• On-site training and setup (optional)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact Section -->
+  <section class="contact-section" id="contact">
+    <div class="contact-content">
+      <h2 class="contact-title">Ready to Transform Your School?</h2>
+      <p style="font-size: 1.2rem; margin-bottom: 2rem; opacity: 0.9;">
+        Contact us today to schedule a demo, get a custom quote, or learn more about how 
+        BioAtt Attendance can revolutionize your school's management system.
+      </p>
+      
+             <div class="contact-info">
+         <div class="contact-item fade-in">
+           <i class="fas fa-envelope contact-icon"></i>
+           <div class="contact-text">avinashvstudio@gmail.com</div>
+         </div>
+         
+         <div class="contact-item fade-in">
+           <i class="fas fa-phone contact-icon"></i>
+           <div class="contact-text">+91 7036009900</div>
+         </div>
+         
+         <div class="contact-item fade-in">
+           <i class="fas fa-building contact-icon"></i>
+           <div class="contact-text">Vaar Digital Invention</div>
+         </div>
+       </div>
+       
+       <div class="website-links" style="margin-top: 2rem;">
+         <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+           <a href="https://vaardi.in/" target="_blank" class="website-link">
+             <i class="fas fa-globe"></i>
+             <span>Company Website</span>
+           </a>
+           <a href="https://vundakotiavinash.in/" target="_blank" class="website-link">
+             <i class="fas fa-user-tie"></i>
+             <span>Portfolio</span>
+           </a>
+         </div>
+       </div>
+      
+      <div style="margin-top: 3rem;">
+        <a href="/admin_panal/common/login.html" class="pricing-cta" style="margin-right: 1rem;">Try Demo Now</a>
+        <a href="#overview" class="pricing-cta" style="background: transparent; border: 2px solid white;">Learn More</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <h3 class="footer-title">BioAtt Attendance System</h3>
+      <p class="footer-description">
+        Empowering schools with smart, affordable, and innovative attendance management solutions. 
+        Join the digital transformation revolution today.
+      </p>
+             <div class="footer-links">
+         <a href="#overview">Overview</a>
+         <a href="#features">Features</a>
+         <a href="#pricing">Pricing</a>
+         <a href="#contact">Contact</a>
+         <a href="https://vaardi.in/" target="_blank">Company</a>
+         <a href="https://vundakotiavinash.in/" target="_blank">Portfolio</a>
+       </div>
+      <p style="opacity: 0.6; font-size: 0.9rem;">
+        © 2024 BioAtt Attendance. All rights reserved. | Developed by Vaar Digital Invention
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    // Intersection Observer for scroll animations
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, observerOptions);
+
+    // Observe all animated elements
+    document.querySelectorAll('.fade-in, .slide-in-left, .slide-in-right, .bounce-in').forEach(el => {
+      observer.observe(el);
+    });
+
+    // Smooth scrolling for navigation
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      });
+    });
+
+    // Navbar background on scroll
+    window.addEventListener('scroll', () => {
+      const navbar = document.querySelector('.navbar');
+      if (window.scrollY > 100) {
+        navbar.style.background = 'rgba(37, 56, 88, 0.98)';
+      } else {
+        navbar.style.background = 'rgba(37, 56, 88, 0.95)';
+      }
+    });
+
+    // Interactive card effects
+    document.querySelectorAll('.panel-card, .feature-item').forEach(card => {
+      card.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateY(-8px) scale(1.02)';
+      });
+      
+      card.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateY(0) scale(1)';
+      });
+    });
+
+    // Counter animation for stats
+    function animateCounter(element, target, duration = 2000) {
+      let start = 0;
+      const increment = target / (duration / 16);
+      
+      function updateCounter() {
+        start += increment;
+        if (start < target) {
+          element.textContent = Math.floor(start);
+          requestAnimationFrame(updateCounter);
+        } else {
+          element.textContent = target;
+        }
+      }
+      
+      updateCounter();
+    }
+
+    // Animate stats when they come into view
+    const statsObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const statNumbers = entry.target.querySelectorAll('.stat-number');
+          statNumbers.forEach(stat => {
+            const text = stat.textContent;
+            if (text.includes('₹')) {
+              animateCounter(stat, 200);
+            } else if (text.includes('%')) {
+              animateCounter(stat, 90);
+            } else if (text.includes('24/7')) {
+              stat.textContent = '24/7';
+            }
+          });
+          statsObserver.unobserve(entry.target);
+        }
+      });
+    });
+
+    statsObserver.observe(document.querySelector('.hero-stats'));
+
+    // Add some interactive effects
+    document.querySelectorAll('.panel-button').forEach(button => {
+      button.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateY(-3px) scale(1.02)';
+      });
+      
+      button.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateY(0) scale(1)';
+      });
+    });
+
+    // Parallax effect for hero section - removed to fix scrolling issues
+    // window.addEventListener('scroll', () => {
+    //   const scrolled = window.pageYOffset;
+    //   const hero = document.querySelector('.hero-section');
+    //   if (hero) {
+    //     hero.style.transform = `translateY(${scrolled * 0.5}px)`;
+    //   }
+    // });
+
+    // Add loading animation
+    window.addEventListener('load', () => {
+      document.body.style.opacity = '0';
+      document.body.style.transition = 'opacity 0.5s ease';
+      
+      setTimeout(() => {
+        document.body.style.opacity = '1';
+      }, 100);
+    });
+  </script>
+</body>
+</html> 

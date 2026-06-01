@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo Setup - BioAtt Attendance</title>
+  <link rel="stylesheet" href="../common/style.css">
+  <style>
+    .demo-container {
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 2rem;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .demo-header {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    
+    .demo-section {
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid #007bff;
+    }
+    
+    .demo-credentials {
+      background: #e8f5e8;
+      border-left-color: #28a745;
+      padding: 1rem;
+      border-radius: 6px;
+    }
+    
+    .credential-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #d4edda;
+    }
+    
+    .credential-item:last-child {
+      border-bottom: none;
+    }
+    
+    .btn-demo {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+    
+    .btn-demo:hover {
+      background: #0056b3;
+    }
+    
+    .btn-demo:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+    
+    .status {
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      margin: 0.5rem 0;
+      font-weight: 500;
+    }
+    
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-container">
+    <div class="demo-header">
+      <h1>🎯 Demo Setup</h1>
+      <p>Populate your database with sample data for client demonstrations</p>
+    </div>
+    
+    <div class="demo-section">
+      <h3>📊 What This Will Create</h3>
+      <ul>
+        <li><strong>6 Demo Users:</strong> Admin, Teachers, Parents, Driver</li>
+        <li><strong>5 Demo Students:</strong> With class assignments and bus routes</li>
+        <li><strong>3 Demo Classes:</strong> With teacher assignments</li>
+        <li><strong>3 Demo Attendance Records:</strong> Today's attendance</li>
+        <li><strong>3 Demo Timetable Entries:</strong> Sample class schedules</li>
+        <li><strong>2 Demo Mark Records:</strong> Sample exam results</li>
+        <li><strong>3 Demo Notifications:</strong> System announcements</li>
+        <li><strong>2 Demo Buses:</strong> With driver assignments</li>
+        <li><strong>2 Demo Bus Attendance:</strong> Transportation records</li>
+      </ul>
+    </div>
+    
+    <div class="demo-section">
+      <h3>⚠️ Important Notes</h3>
+      <ul>
+        <li>This will create <strong>real data</strong> in your Firebase database</li>
+        <li>All demo records are marked with <code>isDemo: true</code></li>
+        <li>You can delete demo data later if needed</li>
+        <li>Make sure you're connected to the correct Firebase project</li>
+      </ul>
+    </div>
+    
+    <div class="demo-section">
+      <button id="setup-demo-btn" class="btn-demo">
+        🚀 Setup Demo Data
+      </button>
+      <div id="setup-status"></div>
+    </div>
+    
+    <div class="demo-section demo-credentials" id="credentials-section" style="display: none;">
+      <h3>🔑 Demo Login Credentials</h3>
+      <div class="credential-item">
+        <span><strong>Admin Portal:</strong></span>
+        <span>admin@demo.com / admin123</span>
+      </div>
+      <div class="credential-item">
+        <span><strong>Teacher Portal:</strong></span>
+        <span>sarah.johnson@demo.com / teacher123</span>
+      </div>
+      <div class="credential-item">
+        <span><strong>Parent Portal:</strong></span>
+        <span>emily.davis@demo.com / parent123</span>
+      </div>
+      <div class="credential-item">
+        <span><strong>Driver Portal:</strong></span>
+        <span>david.rodriguez@demo.com / driver123</span>
+      </div>
+    </div>
+    
+    <div class="demo-section">
+      <h3>🔗 Quick Access Links</h3>
+      <p>After setup, you can quickly access each portal:</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <a href="../admin/index.html" class="btn-demo" style="text-decoration: none; text-align: center;">👑 Admin Portal</a>
+        <a href="../teacher/index.html" class="btn-demo" style="text-decoration: none; text-align: center;">👩‍🏫 Teacher Portal</a>
+        <a href="../parent/index.html" class="btn-demo" style="text-decoration: none; text-align: center;">👨‍👩‍👧‍👦 Parent Portal</a>
+        <a href="../driver/index.html" class="btn-demo" style="text-decoration: none; text-align: center;">🚌 Driver Portal</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getFirestore, collection, doc, setDoc } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+    import { getAuth, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+    import { app } from '../common/firebase-init.js';
+
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    
+    const setupBtn = document.getElementById('setup-demo-btn');
+    const statusDiv = document.getElementById('setup-status');
+    const credentialsSection = document.getElementById('credentials-section');
+    
+    function showStatus(message, type = 'info') {
+      statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+    }
+    
+    // Demo data arrays
+    const demoUsers = [
+      { name: "Admin User", email: "admin@demo.com", password: "admin123", role: "admin" },
+      { name: "Sarah Johnson", email: "sarah.johnson@demo.com", password: "teacher123", role: "teacher", className: "Class 10", section: "A", subjects: "Mathematics, Physics" },
+      { name: "Michael Chen", email: "michael.chen@demo.com", password: "teacher123", role: "teacher", className: "Class 9", section: "B", subjects: "English, Literature" },
+      { name: "Emily Davis", email: "emily.davis@demo.com", password: "parent123", role: "parent" },
+      { name: "Robert Wilson", email: "robert.wilson@demo.com", password: "parent123", role: "parent" },
+      { name: "David Rodriguez", email: "david.rodriguez@demo.com", password: "driver123", role: "driver" }
+    ];
+    
+    const demoStudents = [
+      { name: "Alex Johnson", class: "Class 10", section: "A", parentEmail: "emily.davis@demo.com", bus: "Bus 1", rollNumber: "10A001" },
+      { name: "Maya Chen", class: "Class 10", section: "A", parentEmail: "emily.davis@demo.com", bus: "Bus 1", rollNumber: "10A002" },
+      { name: "James Wilson", class: "Class 9", section: "B", parentEmail: "robert.wilson@demo.com", bus: "Bus 2", rollNumber: "09B001" },
+      { name: "Sophia Rodriguez", class: "Class 9", section: "B", parentEmail: "robert.wilson@demo.com", bus: "Bus 2", rollNumber: "09B002" },
+      { name: "Ethan Brown", class: "Class 8", section: "A", parentEmail: "emily.davis@demo.com", bus: "Bus 1", rollNumber: "08A001" }
+    ];
+    
+    const demoClasses = [
+      { name: "Class 10", section: "A", teacherName: "Sarah Johnson", subjects: ["Mathematics", "Physics", "Chemistry", "Biology", "English"] },
+      { name: "Class 9", section: "B", teacherName: "Michael Chen", subjects: ["English", "Literature", "History", "Geography", "Mathematics"] },
+      { name: "Class 8", section: "A", teacherName: "Sarah Johnson", subjects: ["Mathematics", "Science", "English", "Social Studies"] }
+    ];
+    
+    const demoAttendance = [
+      { studentName: "Alex Johnson", class: "Class 10", section: "A", date: new Date().toISOString().slice(0, 10), status: "Present", time: "08:30" },
+      { studentName: "Maya Chen", class: "Class 10", section: "A", date: new Date().toISOString().slice(0, 10), status: "Present", time: "08:32" },
+      { studentName: "James Wilson", class: "Class 9", section: "B", date: new Date().toISOString().slice(0, 10), status: "Absent", time: "08:30" }
+    ];
+    
+    async function createDemoUsers() {
+      showStatus("Creating demo users...", "info");
+      
+      for (const userData of demoUsers) {
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
+          
+          await setDoc(doc(db, 'users', userCredential.user.uid), {
+            name: userData.name,
+            email: userData.email,
+            role: userData.role,
+            className: userData.className || "",
+            section: userData.section || "",
+            subjects: userData.subjects || "",
+            createdAt: new Date().toISOString(),
+            isDemo: true
+          });
+          
+        } catch (error) {
+          console.error(`Error creating user ${userData.name}:`, error.message);
+        }
+      }
+      
+      showStatus("✅ Demo users created successfully!", "success");
+    }
+    
+    async function createDemoStudents() {
+      showStatus("Creating demo students...", "info");
+      
+      for (const studentData of demoStudents) {
+        try {
+          const studentId = `demo_student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          await setDoc(doc(db, 'students', studentId), {
+            ...studentData,
+            createdAt: new Date().toISOString(),
+            isDemo: true
+          });
+          
+        } catch (error) {
+          console.error(`Error creating student ${studentData.name}:`, error.message);
+        }
+      }
+      
+      showStatus("✅ Demo students created successfully!", "success");
+    }
+    
+    async function createDemoClasses() {
+      showStatus("Creating demo classes...", "info");
+      
+      for (const classData of demoClasses) {
+        try {
+          const classId = `demo_class_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          await setDoc(doc(db, 'classes', classId), {
+            ...classData,
+            createdAt: new Date().toISOString(),
+            isDemo: true
+          });
+          
+        } catch (error) {
+          console.error(`Error creating class ${classData.name}:`, error.message);
+        }
+      }
+      
+      showStatus("✅ Demo classes created successfully!", "success");
+    }
+    
+    async function createDemoAttendance() {
+      showStatus("Creating demo attendance...", "info");
+      
+      for (const attendanceData of demoAttendance) {
+        try {
+          const attendanceId = `demo_attendance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          await setDoc(doc(db, 'attendance', attendanceId), {
+            ...attendanceData,
+            createdAt: new Date().toISOString(),
+            isDemo: true
+          });
+          
+        } catch (error) {
+          console.error(`Error creating attendance:`, error.message);
+        }
+      }
+      
+      showStatus("✅ Demo attendance created successfully!", "success");
+    }
+    
+    async function setupDemoData() {
+      try {
+        setupBtn.disabled = true;
+        setupBtn.textContent = "🔄 Setting up...";
+        
+        showStatus("🚀 Starting demo data setup...", "info");
+        
+        await createDemoUsers();
+        await createDemoStudents();
+        await createDemoClasses();
+        await createDemoAttendance();
+        
+        showStatus("🎉 Demo data setup completed successfully!", "success");
+        credentialsSection.style.display = "block";
+        
+        setupBtn.textContent = "✅ Setup Complete!";
+        
+      } catch (error) {
+        console.error("Setup error:", error);
+        showStatus(`❌ Error: ${error.message}`, "error");
+        setupBtn.disabled = false;
+        setupBtn.textContent = "🚀 Setup Demo Data";
+      }
+    }
+    
+    setupBtn.addEventListener('click', setupDemoData);
+  </script>
+</body>
+</html>

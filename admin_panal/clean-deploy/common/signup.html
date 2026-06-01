@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up - BioAtt Attendance</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="auth-container">
+    <form id="signup-form">
+      <h2>Sign Up</h2>
+      <input type="text" id="signup-school-id" placeholder="School ID" required />
+      <input type="text" id="signup-name" placeholder="Name" required />
+      <input type="email" id="signup-email" placeholder="Email" required />
+      <input type="password" id="signup-password" placeholder="Password" required />
+      <select id="signup-role" required>
+        <option value="">Select Role</option>
+        <option value="admin">Admin</option>
+        <option value="teacher">Teacher</option>
+        <option value="parent">Parent</option>
+        <option value="driver">Driver</option>
+      </select>
+      <button type="submit">Sign Up</button>
+      <p>Already have an account? <a href="login.html">Login</a></p>
+      <p id="signup-error" style="color:red;"></p>
+    </form>
+  </div>
+  <script type="module" src="signup.js"></script>
+</body>
+</html> 

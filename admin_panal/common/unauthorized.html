@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Access Denied - BioAtt Attendance</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .unauthorized-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+      padding: 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .unauthorized-card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 3rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      max-width: 500px;
+    }
+    
+    .unauthorized-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    
+    .unauthorized-title {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      color: #ff6b6b;
+    }
+    
+    .unauthorized-message {
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    
+    .unauthorized-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    
+    .btn-unauthorized {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      text-decoration: none;
+      display: inline-block;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-primary {
+      background: #4CAF50;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #45a049;
+      transform: translateY(-2px);
+    }
+    
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+  <div class="unauthorized-container">
+    <div class="unauthorized-card">
+      <div class="unauthorized-icon">🚫</div>
+      <h1 class="unauthorized-title">Access Denied</h1>
+      <p class="unauthorized-message">
+        You don't have permission to access this portal. 
+        Please contact your administrator if you believe this is an error.
+      </p>
+      <div class="unauthorized-actions">
+        <a href="login.html" class="btn-unauthorized btn-primary">Go to Login</a>
+        <button onclick="history.back()" class="btn-unauthorized btn-secondary">Go Back</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

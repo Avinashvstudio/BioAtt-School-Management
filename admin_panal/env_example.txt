@@ -1,0 +1,13 @@
+# Email Configuration for Flask App
+# Copy this file to .env and fill in your actual values
+
+# Gmail credentials for sending emails
+GMAIL_USER=your-email@gmail.com
+GMAIL_PASS=your-app-password
+
+# Note: For Gmail, you need to use an App Password, not your regular password
+# To get an App Password:
+# 1. Enable 2-factor authentication on your Google account
+# 2. Go to Google Account settings > Security > App passwords
+# 3. Generate a new app password for "Mail"
+# 4. Use that password here instead of your regular Gmail password

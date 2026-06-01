@@ -1,0 +1,54 @@
+# Android
+*.iml
+.gradle/
+build/
+app/build/
+.externalNativeBuild/
+.cxx/
+local.properties
+keystore.properties
+**/release-keystore.jks
+captures/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+
+# Node
+node_modules/
+admin_panal/functions/node_modules/
+
+# Firebase / secrets (never commit)
+*bioatt-attendance*.json
+*firebase-adminsdk*.json
+**/bioatt-attendance-25d06-firebase-adminsdk-*.json
+
+# Logs & caches
+*.log
+.firebase/
+firebase-debug.log
+pglite-debug.log
+
+# Duplicate backup files (accidental copies)
+**/*_0.js
+**/*_0.java
+**/*_0.kt
+**/*_0.xml
+**/*_0.html
+**/*_0.css
+**/*_0.md
+**/*_0.txt
+**/*_0.gradle
+**/*_0.properties
+
+# OS
+Thumbs.db

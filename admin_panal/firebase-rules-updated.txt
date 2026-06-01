@@ -1,0 +1,166 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to get user role
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    // Helper function to check if user has specific role
+    function hasRole(role) {
+      return request.auth != null && getUserRole() == role;
+    }
+    
+    // Helper function to check if user has any of the specified roles
+    function hasAnyRole(roles) {
+      return request.auth != null && getUserRole() in roles;
+    }
+    
+    // Users collection - role-based access
+    match /users/{userId} {
+      function callerData() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      }
+
+      function isAdmin() {
+        return request.auth != null
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && callerData().role == 'admin';
+      }
+
+      // Signup / admin user creation
+      allow create: if request.auth != null;
+
+      // Read own profile, or admin reads all
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+
+      // Admin can update or delete any user profile
+      allow update, delete: if isAdmin();
+
+      // Non-admins may update their own profile but not change role
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+    }
+    
+    // Students collection - role-based access
+    match /students/{studentId} {
+      // Admins and teachers can read all students
+      allow read: if hasAnyRole(['admin', 'teacher']);
+      
+      // Parents can only read students they are associated with
+      allow read: if hasRole('parent') && 
+        resource.data.parentEmail == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email;
+      
+      // Only admins can create/update/delete students
+      allow write: if hasRole('admin');
+    }
+    
+    // Classes collection - role-based access
+    match /classes/{classId} {
+      // Admins can read/write all classes
+      allow read, write: if hasRole('admin');
+
+      // Teachers can read all classes (needed for assignments + timetable context)
+      allow read: if hasRole('teacher');
+
+      // Parents can read classes their children are in
+      allow read: if hasRole('parent');
+    }
+    
+    // Attendance collection - role-based access
+    match /attendance/{docId} {
+      // Admins can read/write all attendance
+      allow read, write: if hasRole('admin');
+      
+      // Teachers can read their attendance records and write only their own records
+      allow read: if hasRole('teacher') && resource.data.teacherId == request.auth.uid;
+      allow create, update: if hasRole('teacher') && request.resource.data.teacherId == request.auth.uid;
+      
+      // Parents can only read attendance for their children
+      allow read: if hasRole('parent') && 
+        resource.data.parentEmail == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email;
+      
+      // Drivers can read/write bus attendance
+      allow read, write: if hasRole('driver') && 
+        resource.data.type == 'bus';
+    }
+    
+    // Timetable collection - role-based access
+    match /timetable/{docId} {
+      // Admins can read/write all timetables
+      allow read, write: if hasRole('admin');
+
+      // Teachers need the full class timetable for assigned classes (not only their own periods)
+      allow read: if hasRole('teacher');
+
+      // Parents/students can read timetables (filter in app by class if needed)
+      allow read: if hasAnyRole(['parent', 'student']);
+    }
+
+    // Exams collection - role-based access
+    match /exams/{examId} {
+      // Admins can manage exams
+      allow read, write: if hasRole('admin');
+
+      // Teachers can read exams for marks entry
+      allow read: if hasRole('teacher');
+    }
+    
+    // Marks collection - role-based access
+    match /marks/{docId} {
+      // Admins can read/write all marks
+      allow read, write: if hasRole('admin');
+      
+      // Teachers can read marks they created and write only their own entries
+      allow read: if hasRole('teacher') && resource.data.teacherId == request.auth.uid;
+      allow create, update: if hasRole('teacher') && request.resource.data.teacherId == request.auth.uid;
+      
+      // Parents can only read marks for their children
+      allow read: if hasRole('parent') && 
+        resource.data.parentEmail == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email;
+    }
+    
+    // Notifications collection - role-based access
+    match /notifications/{docId} {
+      // Admins can read/write all notifications
+      allow read, write: if hasRole('admin');
+      
+      // Users can read notifications for their role or 'all'
+      allow read: if request.auth != null && 
+        (resource.data.role == 'all' || 
+         resource.data.role == getUserRole() || 
+         resource.data.role in [getUserRole(), 'all']);
+      
+      // Teachers can create notifications for their classes
+      allow create: if hasRole('teacher');
+    }
+    
+    // Buses collection - role-based access
+    match /buses/{busId} {
+      // Admins can read/write all buses
+      allow read, write: if hasRole('admin');
+      
+      // Drivers can read/write their assigned buses
+      allow read, write: if hasRole('driver') && 
+        resource.data.driverId == request.auth.uid;
+      
+      // Parents can read bus info for their children
+      allow read: if hasRole('parent');
+    }
+    
+    // Bus attendance collection - role-based access
+    match /bus_attendance/{docId} {
+      // Admins can read/write all bus attendance
+      allow read, write: if hasRole('admin');
+      
+      // Drivers can read/write attendance for their buses
+      allow read, write: if hasRole('driver') && 
+        resource.data.busNumber in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedBuses;
+      
+      // Parents can read bus attendance for their children
+      allow read: if hasRole('parent') && 
+        resource.data.parentEmail == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email;
+    }
+  }
+}

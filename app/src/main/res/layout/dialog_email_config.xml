@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Sender Email"
+        android:textColor="@color/primary_text_color"
+        android:textSize="16sp" />
+
+    <EditText
+        android:id="@+id/senderEmailInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="e.g., your-email@gmail.com"
+        android:inputType="textEmailAddress" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Sender Password / App Password"
+        android:textColor="@color/primary_text_color"
+        android:textSize="16sp" />
+
+    <EditText
+        android:id="@+id/senderPasswordInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="Enter password"
+        android:inputType="textPassword" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Recipient Email"
+        android:textColor="@color/primary_text_color"
+        android:textSize="16sp" />
+
+    <EditText
+        android:id="@+id/recipientEmailInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="e.g., admin@your-company.com"
+        android:inputType="textEmailAddress" />
+
+</LinearLayout> 

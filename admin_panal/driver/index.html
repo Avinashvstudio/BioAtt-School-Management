@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bus Driver Portal</title>
+  <link rel="stylesheet" href="../common/style.css">
+  <link rel="stylesheet" href="../common/admin-theme.css">
+  <style>
+    .driver-main { max-width: 520px; margin: 2rem auto; background: var(--surface, #fff); border-radius: 12px; box-shadow: var(--shadow); padding: 1.5rem; border: 1px solid var(--border, #e2e8f0); }
+    .student-list { margin: 1.5rem 0; }
+    .student-row { display: flex; align-items: center; justify-content: space-between; padding: 0.7em 0; border-bottom: 1px solid #eee; }
+    .student-name { font-weight: 500; }
+    .status-btns { display: flex; gap: 0.5em; }
+    .status-btns button { padding: 0.4em 1em; border-radius: 5px; border: none; font-size: 1em; cursor: pointer; }
+    .picked { background: #4caf50; color: #fff; }
+    .dropped { background: #2196f3; color: #fff; }
+    .timestamp { font-size: 0.9em; color: #888; margin-left: 0.5em; }
+    .logout-btn { background: #e74c3c; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 5px; font-size: 1em; margin-top: 1.5em; cursor: pointer; }
+    .bus-info { margin-bottom: 1.2em; font-size: 1.1em; }
+    .login-form { display: flex; flex-direction: column; gap: 1em; }
+    .login-form input { padding: 0.7em; border-radius: 5px; border: 1px solid #ccc; font-size: 1em; }
+    .login-form button { background: #223a5f; color: #fff; border: none; padding: 0.7em; border-radius: 5px; font-size: 1em; cursor: pointer; }
+    .error { color: #e74c3c; margin-top: 1em; }
+  </style>
+</head>
+<body>
+  <header class="portal-header" style="justify-content:center"><h1 class="portal-title" style="margin:0">Bus Driver Portal</h1></header>
+  <div class="driver-main" id="driver-main">
+    <!-- Login or dashboard will be rendered here -->
+  </div>
+  <script type="module" src="driver.js"></script>
+</body>
+</html> 

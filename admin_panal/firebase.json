@@ -1,0 +1,103 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "**/*.py",
+      "**/*.pyc",
+      "**/__pycache__/**",
+      "**/*.log",
+      "**/requirements.txt",
+      "**/app.py",
+      "**/bioatt-attendance-25d06-firebase-adminsdk-fbsvc-8fded6b85d.json",
+      "**/*-firebase-adminsdk-*.json",
+      "**/seed_*.py",
+      "**/DEMO_CREDENTIALS.md",
+      "**/DEPLOY.md",
+      "**/render.yaml",
+      "**/Procfile",
+      "**/.env",
+      "**/.env.*",
+      "**/setAdminClaim.js",
+      "**/README*.md",
+      "**/.gitignore",
+      "**/_0.gitignore",
+      "**/firebase-debug.log",
+      "**/pglite-debug.log",
+      "**/gradle*",
+      "**/build.gradle*",
+      "**/settings.gradle*",
+      "**/gradlew*",
+      "**/proguard-rules.pro",
+      "**/src/**",
+      "**/app/**",
+      "**/functions/**",
+      "**/android/**",
+      "**/ios/**",
+      "**/androidTest/**",
+      "**/test/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/admin_panal/**",
+        "destination": "/admin_panal/index.html"
+      },
+      {
+        "source": "/admin/**",
+        "destination": "/admin_panal/admin/index.html"
+      },
+      {
+        "source": "/teacher/**",
+        "destination": "/admin_panal/teacher/index.html"
+      },
+      {
+        "source": "/parent/**",
+        "destination": "/admin_panal/parent/index.html"
+      },
+      {
+        "source": "/driver/**",
+        "destination": "/admin_panal/driver/index.html"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "max-age=31536000"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(jpg|jpeg|gif|png|svg|webp)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "max-age=31536000"
+          }
+        ]
+      },
+      {
+        "source": "**/*.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      }
+    ],
+    "cleanUrls": true,
+    "trailingSlash": false
+  },
+  "functions": {
+    "source": "functions"
+  }
+}
