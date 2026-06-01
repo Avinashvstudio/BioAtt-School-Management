@@ -89,23 +89,73 @@ async function fetchClassesList() {
   return list;
 }
 
+/** Split legacy multi-section class records (e.g. "A,B,C") into single sections for dropdowns. */
+function splitSectionList(sectionField) {
+  if (!sectionField) return [];
+  return String(sectionField)
+    .split(/[,/|;&]+/)
+    .map(part => part.trim().toUpperCase().replace(/\s+/g, ''))
+    .filter(part => part && part.length <= 2);
+}
+
+function expandClassSectionPairs(classes) {
+  const pairs = [];
+  const seen = new Set();
+  for (const c of classes) {
+    const className = normalizeClassName(c.name);
+    const sections = splitSectionList(c.section);
+    if (!sections.length) continue;
+    for (const section of sections) {
+      const key = `${className}__${section}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pairs.push({
+        className,
+        section,
+        label: `${c.name} — Section ${section}`,
+      });
+    }
+  }
+  return pairs.sort((a, b) =>
+    `${a.className}${a.section}`.localeCompare(`${b.className}${b.section}`)
+  );
+}
+
+function validateSingleSection(section, label = 'Section') {
+  const raw = (section || '').trim();
+  if (!raw) return { ok: false, message: `${label} is required.` };
+  if (/[,/|;&]/.test(raw)) {
+    return { ok: false, message: `${label} must be one section only (e.g. A). Do not use commas.` };
+  }
+  const value = raw.toUpperCase().replace(/\s+/g, '');
+  if (!value || value.length > 2) {
+    return { ok: false, message: `${label} must be a single section code (e.g. A or B).` };
+  }
+  return { ok: true, value };
+}
+
 async function buildClassSectionSelectHtml(selectedClass = '', selectedSection = '') {
   const classes = await fetchClassesList();
-  const selectedKey = selectedClass && selectedSection
-    ? `${normalizeClassName(selectedClass)}__${normalizeSection(selectedSection)}`
-    : '';
-  if (!classes.length) {
+  const pairs = expandClassSectionPairs(classes);
+  let selectedKey = '';
+  if (selectedClass && selectedSection) {
+    const sections = splitSectionList(selectedSection);
+    const sec = sections[0] || validateSingleSection(selectedSection).value || '';
+    if (sec) {
+      selectedKey = `${normalizeClassName(selectedClass)}__${sec}`;
+    }
+  }
+  if (!pairs.length) {
     return {
       html: '<option value="">No classes yet — create a class first</option>',
       classes: [],
       hasClasses: false,
     };
   }
-  const options = classes.map(c => {
-    const val = `${normalizeClassName(c.name)}__${normalizeSection(c.section)}`;
-    const label = `${c.name} — Section ${c.section}`;
+  const options = pairs.map(p => {
+    const val = `${p.className}__${p.section}`;
     const sel = val === selectedKey ? ' selected' : '';
-    return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(label)}</option>`;
+    return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(p.label)}</option>`;
   }).join('');
   return {
     html: `<option value="">Select class &amp; section</option>${options}`,
@@ -115,10 +165,14 @@ async function buildClassSectionSelectHtml(selectedClass = '', selectedSection =
 }
 
 function parseClassSectionSelect(value) {
-  const [className, section] = (value || '').split('__');
+  const raw = value || '';
+  const idx = raw.indexOf('__');
+  if (idx < 0) return { className: '', section: '' };
+  const className = normalizeClassName(raw.slice(0, idx));
+  const section = validateSingleSection(raw.slice(idx + 2), 'Section');
   return {
-    className: normalizeClassName(className),
-    section: normalizeSection(section),
+    className,
+    section: section.ok ? section.value : '',
   };
 }
 
@@ -138,12 +192,17 @@ function resolveStudentDisplay(record, studentById) {
   return '—';
 }
 
+function displaySingleSection(section) {
+  const parts = splitSectionList(section);
+  return parts[0] || (section || '').trim() || 'N/A';
+}
+
 function formatClassSection(cls, section) {
   let c = (cls || '').trim();
-  const s = (section || '').trim();
-  if (!c && !s) return '—';
+  const s = displaySingleSection(section);
+  if (!c && (!s || s === 'N/A')) return '—';
   if (c && !/^class\s/i.test(c)) c = `Class ${c}`;
-  return s ? `${c} - Section ${s}` : c;
+  return s && s !== 'N/A' ? `${c} - Section ${s}` : c;
 }
 
 function normalizeEmailKey(email) {
@@ -225,7 +284,8 @@ function normalizeClassName(input) {
 }
 
 function normalizeSection(input) {
-  return (input || '').trim().toUpperCase().replace(/\s+/g, '');
+  const result = validateSingleSection(input, 'Section');
+  return result.ok ? result.value : '';
 }
 
 function normalizeCsvList(input) {
@@ -939,7 +999,7 @@ async function showStudentManagement(user) {
         <tr data-name="${(s.name || '').toLowerCase()}" data-class="${s.class || ''}" data-section="${s.section || ''}">
           <td>${s.name || 'N/A'}</td>
           <td>${s.class || 'N/A'}</td>
-          <td>${s.section || 'N/A'}</td>
+          <td>${escapeHtml(displaySingleSection(s.section))}</td>
           <td>${s.parentEmail || 'N/A'}</td>
           <td>${s.bus || 'N/A'}</td>
           <td class="actions">
@@ -1051,6 +1111,7 @@ async function showAddStudentForm() {
           <div class="form-group" style="grid-column:1/-1">
             <label for="student-class-section">Class &amp; Section</label>
             <select id="student-class-section" required>${classSelect.html}</select>
+            <p class="form-hint">Each student belongs to exactly one class and one section.</p>
             ${classSelect.hasClasses ? '' : '<p class="form-hint"><a href="#" id="goto-add-class">Create a class</a> before enrolling students.</p>'}
           </div>
           <div class="form-group">
@@ -1081,9 +1142,14 @@ async function showAddStudentForm() {
     const { className, section } = parseClassSectionSelect(document.getElementById('student-class-section').value);
     const parentEmail = document.getElementById('student-parent-email').value.trim().toLowerCase();
     const bus = normalizeClassName(document.getElementById('student-bus').value);
+    const sectionCheck = validateSingleSection(section, 'Section');
 
-    if (!name || !className || !section || !parentEmail) {
+    if (!name || !className || !parentEmail) {
       toast('Name, class, section, and parent email are required.', 'error');
+      return;
+    }
+    if (!sectionCheck.ok) {
+      toast(sectionCheck.message, 'error');
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail)) {
@@ -1096,7 +1162,7 @@ async function showAddStudentForm() {
       await setDoc(doc(db, 'students', Date.now().toString()), {
         name,
         class: className,
-        section,
+        section: sectionCheck.value,
         parentEmail,
         bus: bus || '',
         createdAt: new Date().toISOString()
@@ -1169,7 +1235,7 @@ async function showClassManagement(user) {
       html += `
         <tr>
           <td>${c.name || 'N/A'}</td>
-          <td>${c.section || 'N/A'}</td>
+          <td>${escapeHtml(displaySingleSection(c.section))}${splitSectionList(c.section).length > 1 ? ' <span class="text-muted" title="Edit class and save one section per record">⚠</span>' : ''}</td>
           <td>${teacherLabel}</td>
           <td class="actions">
             <button onclick="editClass('${c.id}')" class="btn btn-sm btn-secondary">
@@ -1235,7 +1301,8 @@ async function showAddClassForm() {
           </div>
           <div class="form-group">
             <label for="class-section">Section</label>
-            <input type="text" id="class-section" required placeholder="e.g. A" maxlength="3">
+            <input type="text" id="class-section" required placeholder="e.g. A" maxlength="2" pattern="[A-Za-z0-9]{1,2}">
+            <p class="form-hint">One section per class record (e.g. A). Create another class row for section B.</p>
           </div>
           <div class="form-group" style="grid-column:1/-1">
             <label for="class-teacher-id">Class Teacher</label>
@@ -1258,18 +1325,23 @@ async function showAddClassForm() {
     e.preventDefault();
     
     const name = normalizeClassName(document.getElementById('class-name').value);
-    const section = normalizeSection(document.getElementById('class-section').value);
+    const sectionResult = validateSingleSection(document.getElementById('class-section').value, 'Section');
     const teacherId = document.getElementById('class-teacher-id').value;
     const selectedTeacher = teachers.find(t => t.id === teacherId);
 
-    if (!name || !section) {
-      toast('Class name and section are required.', 'error');
+    if (!name) {
+      toast('Class name is required.', 'error');
       return;
     }
-    
+    if (!sectionResult.ok) {
+      toast(sectionResult.message, 'error');
+      return;
+    }
+
     try {
-      // Create class document in Firestore
-      await setDoc(doc(db, 'classes', Date.now().toString()), {
+      const section = sectionResult.value;
+      const classDocId = `class_${name.replace(/\s+/g, '_')}_${section}`;
+      await setDoc(doc(db, 'classes', classDocId), {
         name,
         section,
         teacherId: teacherId || '',
@@ -1308,11 +1380,11 @@ async function showTimetableManagement() {
     timetableSnap.forEach(entryDoc => timetableEntries.push({ id: entryDoc.id, ...entryDoc.data() }));
     timetableEntries.sort((a, b) => `${a.class || ''}${a.section || ''}${a.day || ''}${a.period || ''}`.localeCompare(`${b.class || ''}${b.section || ''}${b.day || ''}${b.period || ''}`));
 
-    const classOptions = [];
+    const classesList = [];
     classesSnap.forEach(classDoc => {
-      const c = classDoc.data();
-      classOptions.push({ className: c.name, section: c.section });
+      classesList.push({ id: classDoc.id, ...classDoc.data() });
     });
+    const classOptions = expandClassSectionPairs(classesList);
 
     const teacherOptions = [];
     teachersSnap.forEach(teacherDoc => {
@@ -1321,7 +1393,7 @@ async function showTimetableManagement() {
     });
 
     const classOptionHtml = classOptions
-      .map(c => `<option value="${c.className}__${c.section}">${c.className} - ${c.section}</option>`)
+      .map(c => `<option value="${escapeHtml(c.className)}__${escapeHtml(c.section)}">${escapeHtml(c.label)}</option>`)
       .join('');
     const teacherOptionHtml = teacherOptions
       .map(t => `<option value="${t.id}">${t.name}</option>`)
@@ -1415,8 +1487,8 @@ async function showTimetableManagement() {
 
     document.getElementById('add-timetable-form').onsubmit = async (e) => {
       e.preventDefault();
-      const classSection = document.getElementById('tt-class-section').value;
-      const [className, section] = classSection.split('__');
+      const { className, section: sectionRaw } = parseClassSectionSelect(document.getElementById('tt-class-section').value);
+      const sectionCheck = validateSingleSection(sectionRaw, 'Section');
       const day = document.getElementById('tt-day').value;
       const period = Number(document.getElementById('tt-period').value);
       const subject = normalizeClassName(document.getElementById('tt-subject').value);
@@ -1425,10 +1497,11 @@ async function showTimetableManagement() {
       const end = document.getElementById('tt-end').value;
       const teacher = teacherOptions.find(t => t.id === teacherId);
 
-      if (!className || !section || !day || !period || !subject || !teacherId || !start || !end) {
-        toast('Please fill all timetable fields.', 'error');
+      if (!className || !sectionCheck.ok || !day || !period || !subject || !teacherId || !start || !end) {
+        toast(sectionCheck.ok ? 'Please fill all timetable fields.' : sectionCheck.message, 'error');
         return;
       }
+      const section = sectionCheck.value;
       if (start >= end) {
         toast('Start time must be earlier than end time.', 'error');
         return;
@@ -1961,14 +2034,15 @@ window.editStudent = async function(studentId) {
       try {
         const { className, section } = parseClassSectionSelect(document.getElementById('edit-stu-class-section').value);
         const parentEmail = document.getElementById('edit-stu-email').value.trim().toLowerCase();
-        if (!className || !section) {
-          toast('Select a class and section.', 'error');
+        const sectionCheck = validateSingleSection(section, 'Section');
+        if (!className || !sectionCheck.ok) {
+          toast(sectionCheck.ok ? 'Select a class and section.' : sectionCheck.message, 'error');
           return;
         }
         await updateDocOrAdmin('students', studentId, {
           name: normalizeClassName(document.getElementById('edit-stu-name').value),
           class: className,
-          section,
+          section: sectionCheck.value,
           parentEmail,
           bus: normalizeClassName(document.getElementById('edit-stu-bus').value),
           updatedAt: new Date().toISOString()
@@ -2017,7 +2091,9 @@ window.editClass = async function(classId) {
         <form id="edit-class-form" class="portal-form">
           <div class="form-grid">
             <div class="form-group"><label>Class Name</label><input id="edit-cls-name" value="${escapeHtml(c.name || '')}" required></div>
-            <div class="form-group"><label>Section</label><input id="edit-cls-section" value="${escapeHtml(c.section || '')}" required></div>
+            <div class="form-group"><label>Section</label><input id="edit-cls-section" value="${escapeHtml((splitSectionList(c.section)[0] || c.section || ''))}" required maxlength="2" pattern="[A-Za-z0-9]{1,2}">
+              <p class="form-hint">One section only. If this class had multiple sections combined, save as a single section.</p>
+            </div>
             <div class="form-group"><label>Class Teacher</label>
               <select id="edit-cls-teacher"><option value="">Not Assigned</option>${teacherOptions}</select>
             </div>
@@ -2034,9 +2110,14 @@ window.editClass = async function(classId) {
       try {
         const teacherId = document.getElementById('edit-cls-teacher').value;
         const teacher = teachers.find(t => t.id === teacherId);
+        const sectionResult = validateSingleSection(document.getElementById('edit-cls-section').value, 'Section');
+        if (!sectionResult.ok) {
+          toast(sectionResult.message, 'error');
+          return;
+        }
         await updateDocOrAdmin('classes', classId, {
           name: normalizeClassName(document.getElementById('edit-cls-name').value),
-          section: normalizeSection(document.getElementById('edit-cls-section').value),
+          section: sectionResult.value,
           teacherId: teacherId || '',
           teacherName: teacher ? teacher.name : '',
           updatedAt: new Date().toISOString()
