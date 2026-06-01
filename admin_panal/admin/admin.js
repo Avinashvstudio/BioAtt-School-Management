@@ -150,34 +150,67 @@ function normalizeEmailKey(email) {
   return (email || '').trim().toLowerCase();
 }
 
-/** parentEmail -> [{ id, name, class, section, ... }] */
-function buildChildrenByParentEmail(students) {
+/** parentEmail (lowercase) -> [{ id, name, class, section }, ...] */
+function buildParentChildrenMap(studentsSnap) {
   const map = {};
-  students.forEach(s => {
+  studentsSnap.forEach(d => {
+    const s = d.data();
     const key = normalizeEmailKey(s.parentEmail);
     if (!key) return;
     if (!map[key]) map[key] = [];
-    map[key].push(s);
+    map[key].push({
+      id: d.id,
+      name: s.name || d.id,
+      class: s.class || '',
+      section: s.section || '',
+    });
   });
   return map;
 }
 
-function formatParentChildrenCell(children) {
+function formatParentChildrenSummary(children) {
   if (!children || !children.length) {
-    return '<span class="text-muted">No child linked</span>';
+    return '<span class="text-muted">No linked students</span>';
   }
   return children
     .map(c => {
-      const label = formatClassSection(c.class, c.section);
-      const name = escapeHtml(c.name || 'Student');
-      return `<div class="parent-child-line"><strong>${name}</strong><br><span class="text-muted">${escapeHtml(label)}</span></div>`;
+      const cs = formatClassSection(c.class, c.section);
+      return `<span class="parent-child-chip" title="${escapeHtml(c.name)}">${escapeHtml(c.name)}: ${escapeHtml(cs)}</span>`;
     })
-    .join('');
+    .join(' ');
 }
 
 function parentChildrenClassKeys(children) {
   if (!children || !children.length) return '';
-  return [...new Set(children.map(c => (c.class || '').trim()).filter(Boolean))].join(',');
+  return [...new Set(children.map(c => normalizeClassName(c.class)).filter(Boolean))].join(',');
+}
+
+function renderParentChildrenEditor(children, parentEmail) {
+  if (!children.length) {
+    return `
+      <div class="form-group parent-fields" style="grid-column:1/-1">
+        <label>Children (Class / Section)</label>
+        <p class="form-hint">No students linked to <strong>${escapeHtml(parentEmail)}</strong>. Add or edit a student in <strong>Students</strong> and set Parent Email to this address.</p>
+      </div>`;
+  }
+  let rows = children.map(c => `
+    <tr>
+      <td>${escapeHtml(c.name)}</td>
+      <td>${escapeHtml(formatClassSection(c.class, c.section))}</td>
+      <td>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="editStudent('${c.id}')">Edit student</button>
+      </td>
+    </tr>
+  `).join('');
+  return `
+    <div class="form-group parent-fields" style="grid-column:1/-1">
+      <label>Children (Class / Section)</label>
+      <p class="form-hint">Linked via student <em>Parent Email</em>. To change class/section, edit the student record.</p>
+      <table class="data-table" style="margin-top:8px">
+        <thead><tr><th>Student</th><th>Class / Section</th><th>Actions</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 function statusPillClass(status) {
@@ -520,23 +553,20 @@ async function showUserManagement(user) {
     usersSnap.forEach(doc => {
       users.push({ id: doc.id, ...doc.data() });
     });
-    const students = [];
-    studentsSnap.forEach(doc => {
-      students.push({ id: doc.id, ...doc.data() });
-    });
-    const childrenByParent = buildChildrenByParentEmail(students);
+    const parentChildrenMap = buildParentChildrenMap(studentsSnap);
 
     const uniqueRoles = [...new Set(users.map(u => u.role).filter(Boolean))].sort();
     const classSet = new Set();
     users.forEach(u => {
+      if (u.className) classSet.add(u.className);
       if (u.role === 'parent') {
-        const kids = childrenByParent[normalizeEmailKey(u.email)] || [];
-        kids.forEach(c => { if (c.class) classSet.add(c.class); });
-      } else if (u.className) {
-        classSet.add(u.className);
+        const kids = parentChildrenMap[normalizeEmailKey(u.email)] || [];
+        kids.forEach(c => {
+          if (c.class) classSet.add(normalizeClassName(c.class));
+        });
       }
     });
-    const uniqueClasses = [...classSet].sort();
+    const uniqueClasses = [...classSet].filter(Boolean).sort();
     
     let html = `
       <div class="page-header">
@@ -603,33 +633,34 @@ async function showUserManagement(user) {
     `;
     
     users.forEach(u => {
-      const isParent = u.role === 'parent';
-      const children = isParent ? (childrenByParent[normalizeEmailKey(u.email)] || []) : [];
-      const classSectionCell = isParent
-        ? formatParentChildrenCell(children)
-        : escapeHtml(formatClassSection(u.className, u.section));
-      const filterClass = isParent ? parentChildrenClassKeys(children) : (u.className || '');
-      const childActions = isParent && children.length
-        ? children.map(c => `<button type="button" onclick="editStudent('${c.id}')" class="btn btn-sm btn-outline" title="Edit ${escapeHtml(c.name || 'student')}">🎓 ${escapeHtml((c.name || 'Child').split(' ')[0])}</button>`).join(' ')
-        : '';
+      const children = u.role === 'parent' ? (parentChildrenMap[normalizeEmailKey(u.email)] || []) : [];
+      let classSectionCell;
+      let dataClass = u.className || '';
+      if (u.role === 'parent') {
+        classSectionCell = formatParentChildrenSummary(children);
+        dataClass = parentChildrenClassKeys(children) || dataClass;
+      } else if (u.role === 'teacher') {
+        classSectionCell = escapeHtml(formatClassSection(u.className, u.section));
+      } else {
+        classSectionCell = u.className || u.section
+          ? escapeHtml(formatClassSection(u.className, u.section))
+          : '—';
+      }
       html += `
-        <tr data-name="${(u.name || '').toLowerCase()}" data-role="${u.role || ''}" data-class="${filterClass}">
+        <tr data-name="${(u.name || '').toLowerCase()}" data-role="${u.role || ''}" data-class="${escapeHtml(dataClass)}">
           <td>${escapeHtml(u.name || 'N/A')}</td>
           <td>${escapeHtml(u.email || 'N/A')}</td>
           <td><span class="role-badge role-${u.role || 'unknown'}">${u.role || 'N/A'}</span></td>
-          <td class="class-section-cell">${classSectionCell}</td>
+          <td class="parent-class-cell">${classSectionCell}</td>
           <td class="actions">
-            <div class="actions-row">
-              <button onclick="editUser('${u.id}')" class="btn btn-sm btn-secondary">
-                <span class="btn-icon">✏️</span>
-                Edit
-              </button>
-              <button onclick="deleteUser('${u.id}')" class="btn btn-sm btn-danger">
-                <span class="btn-icon">🗑️</span>
-                Delete
-              </button>
-            </div>
-            ${childActions ? `<div class="actions-children">${childActions}</div>` : ''}
+            <button onclick="editUser('${u.id}')" class="btn btn-sm btn-secondary">
+              <span class="btn-icon">✏️</span>
+              Edit
+            </button>
+            <button onclick="deleteUser('${u.id}')" class="btn btn-sm btn-danger">
+              <span class="btn-icon">🗑️</span>
+              Delete
+            </button>
           </td>
         </tr>
       `;
@@ -679,12 +710,13 @@ function setupUserFilters() {
     rows.forEach(row => {
       const name = row.getAttribute('data-name') || '';
       const role = row.getAttribute('data-role') || '';
-      const classKeys = (row.getAttribute('data-class') || '').split(',').map(c => c.trim()).filter(Boolean);
+      const className = row.getAttribute('data-class') || '';
       
       const matchesSearch = !searchTerm || name.includes(searchTerm);
       const matchesRole = !selectedRole || role === selectedRole;
+      const classKeys = className.split(',').map(s => s.trim()).filter(Boolean);
       const matchesClass = !selectedClass || classKeys.includes(selectedClass);
-      
+
       if (matchesSearch && matchesRole && matchesClass) {
         row.style.display = '';
         visibleCount++;
@@ -692,16 +724,14 @@ function setupUserFilters() {
         row.style.display = 'none';
       }
     });
-    
+
     filterCount.textContent = `Showing ${visibleCount} users`;
   }
-  
-  // Add event listeners
+
   searchInput.addEventListener('input', applyFilters);
   roleFilter.addEventListener('change', applyFilters);
   classFilter.addEventListener('change', applyFilters);
-  
-  // Clear filters
+
   clearBtn.addEventListener('click', () => {
     searchInput.value = '';
     roleFilter.value = '';
@@ -744,6 +774,10 @@ async function showAddUserForm() {
             <input type="text" id="user-subjects" placeholder="Maths, Physics, Chemistry">
             <p class="form-hint">Comma-separated list of subjects this teacher handles.</p>
           </div>
+          <div class="form-group parent-fields" id="parent-hint-group" style="display:none;grid-column:1/-1">
+            <label>Children (Class / Section)</label>
+            <p class="form-hint">After creating the parent, open <strong>Students</strong> and set each child's <em>Parent Email</em> to this parent's address. Class/section will appear here automatically.</p>
+          </div>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Create User</button>
@@ -754,10 +788,12 @@ async function showAddUserForm() {
   `;
 
   document.getElementById('user-role').onchange = function() {
-    const show = this.value === 'teacher';
+    const role = this.value;
     document.querySelectorAll('.teacher-fields').forEach(el => {
-      el.style.display = show ? '' : 'none';
+      el.style.display = role === 'teacher' ? '' : 'none';
     });
+    const parentHint = document.getElementById('parent-hint-group');
+    if (parentHint) parentHint.style.display = role === 'parent' ? '' : 'none';
   };
   
   // Form submission
@@ -1782,26 +1818,11 @@ window.editUser = async function(userId) {
     const firstClass = (u.className || '').split(',')[0]?.trim() || '';
     const firstSection = (u.section || '').split(',')[0]?.trim() || '';
     const classSelect = await buildClassSectionSelectHtml(firstClass, firstSection);
-
-    let parentChildrenHtml = '<p class="form-hint">No students linked. Set <strong>Parent Email</strong> on a student to this parent\'s address.</p>';
+    let parentChildrenBlock = '';
     if (isParent) {
       const studentsSnap = await getDocs(collection(db, 'students'));
-      const children = [];
-      const parentKey = normalizeEmailKey(u.email);
-      studentsSnap.forEach(doc => {
-        const s = doc.data();
-        if (normalizeEmailKey(s.parentEmail) === parentKey) {
-          children.push({ id: doc.id, ...s });
-        }
-      });
-      if (children.length) {
-        parentChildrenHtml = `<ul class="parent-children-edit-list">${children.map(c => `
-          <li>
-            <strong>${escapeHtml(c.name || 'Student')}</strong> —
-            ${escapeHtml(formatClassSection(c.class, c.section))}
-            <button type="button" class="btn btn-sm btn-secondary" onclick="editStudent('${c.id}')">Edit student</button>
-          </li>`).join('')}</ul>`;
-      }
+      const children = buildParentChildrenMap(studentsSnap)[normalizeEmailKey(u.email)] || [];
+      parentChildrenBlock = renderParentChildrenEditor(children, u.email || '');
     }
 
     featureDiv.innerHTML = `
@@ -1823,7 +1844,7 @@ window.editUser = async function(userId) {
               </select>
             </div>
             <div class="form-group teacher-fields" style="${isTeacher ? '' : 'display:none'};grid-column:1/-1">
-              <label>Assigned class &amp; section (teacher)</label>
+              <label>Class &amp; Section</label>
               <select id="edit-user-class-section">${classSelect.html}</select>
             </div>
             <div class="form-group teacher-fields" style="${isTeacher ? '' : 'display:none'};grid-column:1/-1">
@@ -1831,12 +1852,7 @@ window.editUser = async function(userId) {
               <input id="edit-user-subjects" value="${escapeHtml(u.subjects || '')}" placeholder="Maths, Physics">
               <p class="form-hint">Comma-separated. For multiple classes, edit in Firebase or add separate teacher accounts.</p>
             </div>
-            <div class="form-group parent-fields" style="${isParent ? '' : 'display:none'};grid-column:1/-1">
-              <label>Children (class &amp; section)</label>
-              ${parentChildrenHtml}
-              <p class="form-hint">Class/section comes from each student record. Change it under Student Management → Edit student.</p>
-              <button type="button" class="btn btn-secondary" onclick="showStudentManagement()">Open Student Management</button>
-            </div>
+            ${parentChildrenBlock}
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -1845,14 +1861,21 @@ window.editUser = async function(userId) {
         </form>
       </div>
     `;
-    document.getElementById('edit-user-role').onchange = function() {
+    document.getElementById('edit-user-role').onchange = async function() {
       const role = this.value;
       document.querySelectorAll('.teacher-fields').forEach(el => {
         el.style.display = role === 'teacher' ? '' : 'none';
       });
-      document.querySelectorAll('.parent-fields').forEach(el => {
-        el.style.display = role === 'parent' ? '' : 'none';
-      });
+      let parentBlock = document.querySelector('.parent-fields');
+      if (role === 'parent' && !parentBlock) {
+        const studentsSnap = await getDocs(collection(db, 'students'));
+        const email = document.getElementById('edit-user-email').value.trim().toLowerCase();
+        const children = buildParentChildrenMap(studentsSnap)[email] || [];
+        const grid = document.querySelector('#edit-user-form .form-grid');
+        grid.insertAdjacentHTML('beforeend', renderParentChildrenEditor(children, email));
+      } else if (role !== 'parent') {
+        document.querySelectorAll('.parent-fields').forEach(el => el.remove());
+      }
     };
     document.getElementById('edit-user-form').onsubmit = async (e) => {
       e.preventDefault();
