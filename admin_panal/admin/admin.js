@@ -143,7 +143,41 @@ function formatClassSection(cls, section) {
   const s = (section || '').trim();
   if (!c && !s) return '—';
   if (c && !/^class\s/i.test(c)) c = `Class ${c}`;
-  return s ? `${c} ${s}` : c;
+  return s ? `${c} - Section ${s}` : c;
+}
+
+function normalizeEmailKey(email) {
+  return (email || '').trim().toLowerCase();
+}
+
+/** parentEmail -> [{ id, name, class, section, ... }] */
+function buildChildrenByParentEmail(students) {
+  const map = {};
+  students.forEach(s => {
+    const key = normalizeEmailKey(s.parentEmail);
+    if (!key) return;
+    if (!map[key]) map[key] = [];
+    map[key].push(s);
+  });
+  return map;
+}
+
+function formatParentChildrenCell(children) {
+  if (!children || !children.length) {
+    return '<span class="text-muted">No child linked</span>';
+  }
+  return children
+    .map(c => {
+      const label = formatClassSection(c.class, c.section);
+      const name = escapeHtml(c.name || 'Student');
+      return `<div class="parent-child-line"><strong>${name}</strong><br><span class="text-muted">${escapeHtml(label)}</span></div>`;
+    })
+    .join('');
+}
+
+function parentChildrenClassKeys(children) {
+  if (!children || !children.length) return '';
+  return [...new Set(children.map(c => (c.class || '').trim()).filter(Boolean))].join(',');
 }
 
 function statusPillClass(status) {
@@ -478,15 +512,31 @@ async function showUserManagement(user) {
   `;
   
   try {
-    const usersSnap = await getDocs(collection(db, 'users'));
+    const [usersSnap, studentsSnap] = await Promise.all([
+      getDocs(collection(db, 'users')),
+      getDocs(collection(db, 'students')),
+    ]);
     const users = [];
     usersSnap.forEach(doc => {
       users.push({ id: doc.id, ...doc.data() });
     });
-    
-    // Get unique roles and classes for filters
+    const students = [];
+    studentsSnap.forEach(doc => {
+      students.push({ id: doc.id, ...doc.data() });
+    });
+    const childrenByParent = buildChildrenByParentEmail(students);
+
     const uniqueRoles = [...new Set(users.map(u => u.role).filter(Boolean))].sort();
-    const uniqueClasses = [...new Set(users.map(u => u.className).filter(Boolean))].sort();
+    const classSet = new Set();
+    users.forEach(u => {
+      if (u.role === 'parent') {
+        const kids = childrenByParent[normalizeEmailKey(u.email)] || [];
+        kids.forEach(c => { if (c.class) classSet.add(c.class); });
+      } else if (u.className) {
+        classSet.add(u.className);
+      }
+    });
+    const uniqueClasses = [...classSet].sort();
     
     let html = `
       <div class="page-header">
@@ -553,21 +603,33 @@ async function showUserManagement(user) {
     `;
     
     users.forEach(u => {
+      const isParent = u.role === 'parent';
+      const children = isParent ? (childrenByParent[normalizeEmailKey(u.email)] || []) : [];
+      const classSectionCell = isParent
+        ? formatParentChildrenCell(children)
+        : escapeHtml(formatClassSection(u.className, u.section));
+      const filterClass = isParent ? parentChildrenClassKeys(children) : (u.className || '');
+      const childActions = isParent && children.length
+        ? children.map(c => `<button type="button" onclick="editStudent('${c.id}')" class="btn btn-sm btn-outline" title="Edit ${escapeHtml(c.name || 'student')}">🎓 ${escapeHtml((c.name || 'Child').split(' ')[0])}</button>`).join(' ')
+        : '';
       html += `
-        <tr data-name="${(u.name || '').toLowerCase()}" data-role="${u.role || ''}" data-class="${u.className || ''}">
-          <td>${u.name || 'N/A'}</td>
-          <td>${u.email || 'N/A'}</td>
+        <tr data-name="${(u.name || '').toLowerCase()}" data-role="${u.role || ''}" data-class="${filterClass}">
+          <td>${escapeHtml(u.name || 'N/A')}</td>
+          <td>${escapeHtml(u.email || 'N/A')}</td>
           <td><span class="role-badge role-${u.role || 'unknown'}">${u.role || 'N/A'}</span></td>
-          <td>${u.className || ''} ${u.section || ''}</td>
+          <td class="class-section-cell">${classSectionCell}</td>
           <td class="actions">
-            <button onclick="editUser('${u.id}')" class="btn btn-sm btn-secondary">
-              <span class="btn-icon">✏️</span>
-              Edit
-            </button>
-            <button onclick="deleteUser('${u.id}')" class="btn btn-sm btn-danger">
-              <span class="btn-icon">🗑️</span>
-              Delete
-            </button>
+            <div class="actions-row">
+              <button onclick="editUser('${u.id}')" class="btn btn-sm btn-secondary">
+                <span class="btn-icon">✏️</span>
+                Edit
+              </button>
+              <button onclick="deleteUser('${u.id}')" class="btn btn-sm btn-danger">
+                <span class="btn-icon">🗑️</span>
+                Delete
+              </button>
+            </div>
+            ${childActions ? `<div class="actions-children">${childActions}</div>` : ''}
           </td>
         </tr>
       `;
@@ -617,11 +679,11 @@ function setupUserFilters() {
     rows.forEach(row => {
       const name = row.getAttribute('data-name') || '';
       const role = row.getAttribute('data-role') || '';
-      const className = row.getAttribute('data-class') || '';
+      const classKeys = (row.getAttribute('data-class') || '').split(',').map(c => c.trim()).filter(Boolean);
       
       const matchesSearch = !searchTerm || name.includes(searchTerm);
       const matchesRole = !selectedRole || role === selectedRole;
-      const matchesClass = !selectedClass || className === selectedClass;
+      const matchesClass = !selectedClass || classKeys.includes(selectedClass);
       
       if (matchesSearch && matchesRole && matchesClass) {
         row.style.display = '';
@@ -1716,9 +1778,31 @@ window.editUser = async function(userId) {
     }
     const u = userSnap.data();
     const isTeacher = u.role === 'teacher';
+    const isParent = u.role === 'parent';
     const firstClass = (u.className || '').split(',')[0]?.trim() || '';
     const firstSection = (u.section || '').split(',')[0]?.trim() || '';
     const classSelect = await buildClassSectionSelectHtml(firstClass, firstSection);
+
+    let parentChildrenHtml = '<p class="form-hint">No students linked. Set <strong>Parent Email</strong> on a student to this parent\'s address.</p>';
+    if (isParent) {
+      const studentsSnap = await getDocs(collection(db, 'students'));
+      const children = [];
+      const parentKey = normalizeEmailKey(u.email);
+      studentsSnap.forEach(doc => {
+        const s = doc.data();
+        if (normalizeEmailKey(s.parentEmail) === parentKey) {
+          children.push({ id: doc.id, ...s });
+        }
+      });
+      if (children.length) {
+        parentChildrenHtml = `<ul class="parent-children-edit-list">${children.map(c => `
+          <li>
+            <strong>${escapeHtml(c.name || 'Student')}</strong> —
+            ${escapeHtml(formatClassSection(c.class, c.section))}
+            <button type="button" class="btn btn-sm btn-secondary" onclick="editStudent('${c.id}')">Edit student</button>
+          </li>`).join('')}</ul>`;
+      }
+    }
 
     featureDiv.innerHTML = `
       <div class="page-header">
@@ -1739,13 +1823,19 @@ window.editUser = async function(userId) {
               </select>
             </div>
             <div class="form-group teacher-fields" style="${isTeacher ? '' : 'display:none'};grid-column:1/-1">
-              <label>Class &amp; Section</label>
+              <label>Assigned class &amp; section (teacher)</label>
               <select id="edit-user-class-section">${classSelect.html}</select>
             </div>
             <div class="form-group teacher-fields" style="${isTeacher ? '' : 'display:none'};grid-column:1/-1">
               <label>Subjects</label>
               <input id="edit-user-subjects" value="${escapeHtml(u.subjects || '')}" placeholder="Maths, Physics">
               <p class="form-hint">Comma-separated. For multiple classes, edit in Firebase or add separate teacher accounts.</p>
+            </div>
+            <div class="form-group parent-fields" style="${isParent ? '' : 'display:none'};grid-column:1/-1">
+              <label>Children (class &amp; section)</label>
+              ${parentChildrenHtml}
+              <p class="form-hint">Class/section comes from each student record. Change it under Student Management → Edit student.</p>
+              <button type="button" class="btn btn-secondary" onclick="showStudentManagement()">Open Student Management</button>
             </div>
           </div>
           <div class="form-actions">
@@ -1756,8 +1846,13 @@ window.editUser = async function(userId) {
       </div>
     `;
     document.getElementById('edit-user-role').onchange = function() {
-      const show = this.value === 'teacher';
-      document.querySelectorAll('.teacher-fields').forEach(el => { el.style.display = show ? '' : 'none'; });
+      const role = this.value;
+      document.querySelectorAll('.teacher-fields').forEach(el => {
+        el.style.display = role === 'teacher' ? '' : 'none';
+      });
+      document.querySelectorAll('.parent-fields').forEach(el => {
+        el.style.display = role === 'parent' ? '' : 'none';
+      });
     };
     document.getElementById('edit-user-form').onsubmit = async (e) => {
       e.preventDefault();

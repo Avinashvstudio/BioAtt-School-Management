@@ -737,3 +737,41 @@ body {
   }
   .portal-content { padding: 1rem; }
 }
+
+.class-section-cell .parent-child-line {
+  margin-bottom: 0.5rem;
+  line-height: 1.35;
+}
+.class-section-cell .parent-child-line:last-child {
+  margin-bottom: 0;
+}
+.text-muted {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.actions-children {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn-outline:hover {
+  background: var(--surface-alt, #f1f5f9);
+}
+.parent-children-edit-list {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.25rem;
+}
+.parent-children-edit-list li {
+  margin-bottom: 0.5rem;
+}
