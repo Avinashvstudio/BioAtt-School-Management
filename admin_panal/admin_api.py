@@ -86,10 +86,52 @@ def _verify_admin():
 def _verify_teacher():
     decoded, profile, err = _verify_token()
     if err:
-        return None, err
+        return None, None, err
     if profile.get('role') not in ('teacher', 'admin'):
-        return None, ('Teacher access required', 403)
+        return None, None, ('Teacher access required', 403)
     return decoded, profile, None
+
+
+def _verify_parent():
+    decoded, profile, err = _verify_token()
+    if err:
+        return None, None, err
+    if profile.get('role') not in ('parent', 'admin'):
+        return None, None, ('Parent access required', 403)
+    return decoded, profile, None
+
+
+def _normalize_email(email):
+    return (email or '').strip().lower()
+
+
+def _parent_owns_student(profile, student_id):
+    parent_email = _normalize_email(profile.get('email'))
+    if not parent_email or not student_id:
+        return False
+    doc = _db.collection('students').document(student_id).get()
+    if not doc.exists:
+        return False
+    return _normalize_email(doc.to_dict().get('parentEmail')) == parent_email
+
+
+def _students_for_parent(profile):
+    parent_email = _normalize_email(profile.get('email'))
+    if not parent_email:
+        return []
+    students = []
+    seen = set()
+    for doc in _db.collection('students').stream():
+        data = doc.to_dict()
+        if _normalize_email(data.get('parentEmail')) != parent_email:
+            continue
+        if doc.id in seen:
+            continue
+        seen.add(doc.id)
+        row = dict(data)
+        row['id'] = doc.id
+        students.append(row)
+    return students
 
 
 def _teacher_assigned_to_class(profile, class_name, section):
@@ -335,3 +377,62 @@ def register_admin_routes(app):
                 records.append(row)
 
         return jsonify({'records': records})
+
+    @app.route('/api/parent/students', methods=['GET'])
+    def parent_students():
+        _, profile, err = _verify_parent()
+        if err:
+            return jsonify({'error': err[0]}), err[1]
+        return jsonify({'students': _students_for_parent(profile)})
+
+    @app.route('/api/parent/attendance', methods=['GET'])
+    def parent_attendance():
+        _, profile, err = _verify_parent()
+        if err:
+            return jsonify({'error': err[0]}), err[1]
+        student_id = (request.args.get('studentId') or '').strip()
+        if not student_id:
+            return jsonify({'error': 'studentId is required'}), 400
+        if profile.get('role') != 'admin' and not _parent_owns_student(profile, student_id):
+            return jsonify({'error': 'Not your child'}), 403
+        records = []
+        for doc in _db.collection('attendance').where('studentId', '==', student_id).stream():
+            row = doc.to_dict()
+            row['id'] = doc.id
+            records.append(row)
+        return jsonify({'records': records})
+
+    @app.route('/api/parent/marks', methods=['GET'])
+    def parent_marks():
+        _, profile, err = _verify_parent()
+        if err:
+            return jsonify({'error': err[0]}), err[1]
+        student_id = (request.args.get('studentId') or '').strip()
+        if not student_id:
+            return jsonify({'error': 'studentId is required'}), 400
+        if profile.get('role') != 'admin' and not _parent_owns_student(profile, student_id):
+            return jsonify({'error': 'Not your child'}), 403
+        records = []
+        for doc in _db.collection('marks').where('studentId', '==', student_id).stream():
+            row = doc.to_dict()
+            row['id'] = doc.id
+            records.append(row)
+        return jsonify({'records': records})
+
+    @app.route('/api/parent/notifications', methods=['GET'])
+    def parent_notifications():
+        _, profile, err = _verify_parent()
+        if err:
+            return jsonify({'error': err[0]}), err[1]
+        items = []
+        seen = set()
+        for role in ('parent', 'all'):
+            for doc in _db.collection('notifications').where('role', '==', role).stream():
+                if doc.id in seen:
+                    continue
+                seen.add(doc.id)
+                row = doc.to_dict()
+                row['id'] = doc.id
+                items.append(row)
+        items.sort(key=lambda x: x.get('time') or '', reverse=True)
+        return jsonify({'notifications': items})

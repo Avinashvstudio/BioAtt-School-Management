@@ -1,9 +1,114 @@
 import '../common/auth.js';
 import { onAuthChange, logout } from '../common/auth.js';
-import { getFirestore, collection, query, where, getDocs, orderBy, limit } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import { getFirestore, collection, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { app } from '../common/firebase-init.js';
+import { getApiBase } from '../common/config.js';
+import { getAuth } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 
 const db = getFirestore(app);
+const auth = getAuth(app);
+
+function parentEmailKey(email) {
+  return (email || '').trim().toLowerCase();
+}
+
+async function parentApi(path) {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in');
+  const token = await user.getIdToken();
+  const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Server error (${res.status})`);
+  return data;
+}
+
+async function fetchMyStudents(user) {
+  const email = parentEmailKey(user.email);
+  for (const qEmail of [email, (user.email || '').trim()]) {
+    if (!qEmail) continue;
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'students'), where('parentEmail', '==', qEmail))
+      );
+      if (!snap.empty) {
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+    } catch (error) {
+      console.warn(`Students query failed for ${qEmail}:`, error);
+    }
+  }
+  const data = await parentApi(`${getApiBase()}/api/parent/students`);
+  return data.students || [];
+}
+
+async function fetchStudentAttendance(studentId) {
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'attendance'), where('studentId', '==', studentId))
+    );
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return rows;
+  } catch (error) {
+    console.warn('Attendance query failed:', error);
+  }
+  const data = await parentApi(
+    `${getApiBase()}/api/parent/attendance?studentId=${encodeURIComponent(studentId)}`
+  );
+  const rows = data.records || [];
+  rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return rows;
+}
+
+async function fetchStudentMarks(studentId) {
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'marks'), where('studentId', '==', studentId))
+    );
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return rows;
+  } catch (error) {
+    console.warn('Marks query failed:', error);
+  }
+  const data = await parentApi(
+    `${getApiBase()}/api/parent/marks?studentId=${encodeURIComponent(studentId)}`
+  );
+  const rows = data.records || [];
+  rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return rows;
+}
+
+async function fetchParentNotifications() {
+  try {
+    const roles = ['parent', 'all'];
+    const items = [];
+    const seen = new Set();
+    for (const role of roles) {
+      const snap = await getDocs(
+        query(collection(db, 'notifications'), where('role', '==', role))
+      );
+      snap.forEach(d => {
+        if (seen.has(d.id)) return;
+        seen.add(d.id);
+        items.push({ id: d.id, ...d.data() });
+      });
+    }
+    items.sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')));
+    return items;
+  } catch (error) {
+    console.warn('Notifications query failed:', error);
+  }
+  const data = await parentApi(`${getApiBase()}/api/parent/notifications`);
+  return data.notifications || [];
+}
+
+function asFirestoreDocs(rows) {
+  return rows.map(r => ({
+    id: r.id,
+    data: () => r,
+  }));
+}
 const appDiv = document.getElementById('app');
 
 let currentSection = 'overview';
@@ -81,10 +186,9 @@ async function showOverview(user) {
   featureDiv.innerHTML = '<h2>Student Overview</h2><div class="loading">Loading...</div>';
   
   try {
-    // Find students associated with this parent email
-    const studentsSnap = await getDocs(query(collection(db, 'students'), where('parentEmail', '==', user.email.toLowerCase())));
-    
-    if (studentsSnap.empty) {
+    const students = await fetchMyStudents(user);
+
+    if (!students.length) {
       featureDiv.innerHTML = `
         <h2>Student Overview</h2>
         <div class="empty">
@@ -94,34 +198,16 @@ async function showOverview(user) {
       `;
       return;
     }
-    
-    // Get the first student (assuming one parent, one child for now)
-    const student = studentsSnap.docs[0].data();
-    currentStudent = { id: studentsSnap.docs[0].id, ...student };
-    
-    // Fetch recent attendance data
-    const attendanceSnap = await getDocs(
-      query(
-        collection(db, 'attendance'),
-        where('studentId', '==', currentStudent.id),
-        orderBy('date', 'desc'),
-        limit(10)
-      )
-    );
-    
-    // Fetch recent marks data
-    const marksSnap = await getDocs(
-      query(
-        collection(db, 'marks'),
-        where('studentId', '==', currentStudent.id),
-        orderBy('date', 'desc'),
-        limit(5)
-      )
-    );
-    
-    // Calculate attendance statistics
+
+    currentStudent = students[0];
+
+    const attendanceRows = await fetchStudentAttendance(currentStudent.id);
+    const marksRows = await fetchStudentMarks(currentStudent.id);
+    const attendanceSnap = { docs: asFirestoreDocs(attendanceRows) };
+    const marksSnap = { docs: asFirestoreDocs(marksRows) };
+
     let totalDays = 0, presentDays = 0, absentDays = 0;
-    attendanceSnap.forEach(doc => {
+    attendanceSnap.docs.forEach(doc => {
       const a = doc.data();
       totalDays++;
       if (a.status === 'Present') presentDays++;
@@ -130,9 +216,8 @@ async function showOverview(user) {
     
     const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
     
-    // Calculate average marks
     let totalMarks = 0, marksCount = 0;
-    marksSnap.forEach(doc => {
+    marksSnap.docs.forEach(doc => {
       const m = doc.data();
       if (m.marks !== undefined) {
         totalMarks += m.marks;
@@ -196,15 +281,9 @@ async function showAttendance(user) {
   featureDiv.innerHTML = '<h2>Attendance Records</h2><div class="loading">Loading...</div>';
   
   try {
-    // Fetch all attendance records for the student
-    const attendanceSnap = await getDocs(
-      query(
-        collection(db, 'attendance'),
-        where('studentId', '==', currentStudent.id),
-        orderBy('date', 'desc')
-      )
-    );
-    
+    const attendanceRows = await fetchStudentAttendance(currentStudent.id);
+    const attendanceSnap = { docs: asFirestoreDocs(attendanceRows), empty: !attendanceRows.length };
+
     if (attendanceSnap.empty) {
       featureDiv.innerHTML = '<h2>Attendance Records</h2><div class="empty">No attendance records found.</div>';
       return;
@@ -235,12 +314,12 @@ async function showAttendance(user) {
           <tbody>
     `;
     
-    attendanceSnap.forEach(doc => {
+    attendanceSnap.docs.forEach(doc => {
       const a = doc.data();
       const status = a.status === 'Present' ? '✅ Present' : a.status === 'Absent' ? '❌ Absent' : '🏠 Left for Home';
       const presentTime = a.presentTime ? new Date(a.presentTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-';
       const leftTime = a.leftTime ? new Date(a.leftTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-';
-      
+
       html += `
         <tr>
           <td>${a.date}</td>
@@ -292,15 +371,9 @@ async function showMarks(user) {
   featureDiv.innerHTML = '<h2>Marks & Grades</h2><div class="loading">Loading...</div>';
   
   try {
-    // Fetch all marks for the student
-    const marksSnap = await getDocs(
-      query(
-        collection(db, 'marks'),
-        where('studentId', '==', currentStudent.id),
-        orderBy('date', 'desc')
-      )
-    );
-    
+    const marksRows = await fetchStudentMarks(currentStudent.id);
+    const marksSnap = { docs: asFirestoreDocs(marksRows), empty: !marksRows.length };
+
     if (marksSnap.empty) {
       featureDiv.innerHTML = '<h2>Marks & Grades</h2><div class="empty">No marks records found.</div>';
       return;
@@ -331,7 +404,7 @@ async function showMarks(user) {
           <tbody>
     `;
     
-    marksSnap.forEach(doc => {
+    marksSnap.docs.forEach(doc => {
       const m = doc.data();
       const percentage = m.maxMarks > 0 ? Math.round((m.marks / m.maxMarks) * 100) : 0;
       const grade = getGrade(percentage);
@@ -431,24 +504,16 @@ async function showNotifications(user) {
   featureDiv.innerHTML = '<h2>Notifications</h2><div class="loading">Loading...</div>';
   
   try {
-    // Fetch notifications for parents
-    const notifSnap = await getDocs(
-      query(
-        collection(db, 'notifications'),
-        where('role', 'in', ['parent', 'all']),
-        orderBy('time', 'desc')
-      )
-    );
-    
-    if (notifSnap.empty) {
+    const notifications = await fetchParentNotifications();
+
+    if (!notifications.length) {
       featureDiv.innerHTML = '<h2>Notifications</h2><div class="empty">No notifications found.</div>';
       return;
     }
-    
+
     let html = '<h2>Notifications</h2><ul class="notifications-list">';
-    
-    notifSnap.forEach(doc => {
-      const n = doc.data();
+
+    notifications.forEach(n => {
       html += `
         <li class="notification-item">
           <div class="notification-header">

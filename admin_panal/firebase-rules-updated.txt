@@ -15,6 +15,24 @@ service cloud.firestore {
     function hasAnyRole(roles) {
       return request.auth != null && getUserRole() in roles;
     }
+
+    function callerEmail() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email;
+    }
+
+    function emailsMatch(a, b) {
+      return a != null && b != null && a.lower() == b.lower();
+    }
+
+    // Parent access via studentId (attendance/marks docs use studentId, not parentEmail)
+    function isParentOfStudentId(studentId) {
+      return studentId != null
+        && exists(/databases/$(database)/documents/students/$(studentId))
+        && emailsMatch(
+          get(/databases/$(database)/documents/students/$(studentId)).data.parentEmail,
+          callerEmail()
+        );
+    }
     
     // Users collection - role-based access
     match /users/{userId} {
@@ -48,9 +66,9 @@ service cloud.firestore {
       // Admins and teachers can read all students
       allow read: if hasAnyRole(['admin', 'teacher']);
       
-      // Parents can only read students they are associated with
-      allow read: if hasRole('parent') && 
-        resource.data.parentEmail == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email;
+      // Parents can only read their own children (case-insensitive email match)
+      allow read: if hasRole('parent')
+        && emailsMatch(resource.data.parentEmail, callerEmail());
       
       // Only admins can create/update/delete students
       allow write: if hasRole('admin');
@@ -78,9 +96,9 @@ service cloud.firestore {
       allow create, update: if hasRole('teacher')
         && request.resource.data.teacherId == request.auth.uid;
       
-      // Parents can only read attendance for their children
-      allow read: if hasRole('parent') && 
-        resource.data.parentEmail == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email;
+      // Parents read attendance by linked studentId
+      allow read: if hasRole('parent')
+        && isParentOfStudentId(resource.data.studentId);
       
       // Drivers can read/write bus attendance
       allow read, write: if hasRole('driver') && 
@@ -118,9 +136,9 @@ service cloud.firestore {
       allow create, update: if hasRole('teacher')
         && request.resource.data.teacherId == request.auth.uid;
       
-      // Parents can only read marks for their children
-      allow read: if hasRole('parent') && 
-        resource.data.parentEmail == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email;
+      // Parents read marks by linked studentId
+      allow read: if hasRole('parent')
+        && isParentOfStudentId(resource.data.studentId);
     }
     
     // Notifications collection - role-based access
@@ -160,9 +178,11 @@ service cloud.firestore {
       allow read, write: if hasRole('driver') && 
         resource.data.busNumber in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedBuses;
       
-      // Parents can read bus attendance for their children
-      allow read: if hasRole('parent') && 
-        resource.data.parentEmail == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email;
+      // Parents read bus attendance for their children
+      allow read: if hasRole('parent') && (
+        isParentOfStudentId(resource.data.studentId)
+        || emailsMatch(resource.data.parentEmail, callerEmail())
+      );
     }
   }
 }
