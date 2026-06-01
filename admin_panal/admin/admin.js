@@ -3,6 +3,11 @@ import { onAuthChange, logout } from '../common/auth.js';
 import { getFirestore, collection, query, where, getDocs, getDoc, setDoc, doc, deleteDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { getAuth, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { app } from '../common/firebase-init.js';
+import {
+  renderNotificationsPage,
+  renderNotificationsLoading,
+  renderNotificationsError,
+} from '../common/notifications-ui.js';
 
 const db = getFirestore(app);
 const auth = getAuth(app);
@@ -1625,7 +1630,7 @@ async function showExamManagement() {
 async function showNotificationManagement() {
   setActiveNav('notifications');
   const featureDiv = document.getElementById('feature-content');
-  featureDiv.innerHTML = '<div class="loading">Loading notifications...</div>';
+  featureDiv.innerHTML = renderNotificationsLoading('Notifications');
 
   try {
     const snap = await getDocs(collection(db, 'notifications'));
@@ -1633,56 +1638,61 @@ async function showNotificationManagement() {
     snap.forEach(d => items.push({ id: d.id, ...d.data() }));
     items.sort((a, b) => (b.time || 0) - (a.time || 0));
 
-    let rows = '';
-    items.forEach(n => {
-      rows += `<tr>
-        <td>${escapeHtml(n.title)}</td>
-        <td><span class="role-badge role-${n.role || 'unknown'}">${escapeHtml(n.role)}</span></td>
-        <td>${escapeHtml(n.category || 'general')}</td>
-        <td>${n.time ? new Date(n.time).toLocaleString() : '-'}</td>
-        <td class="actions">
-          <button class="btn btn-sm btn-danger" onclick="deleteNotification('${n.id}')">Delete</button>
-        </td>
-      </tr>`;
-    });
-
-    featureDiv.innerHTML = `
-      <div class="page-header">
-        <h1>Notifications</h1>
-        <p>Broadcast messages to teachers, parents, or all users.</p>
-      </div>
-      <div class="card">
+    const composeCard = `
+      <div class="card notif-compose-card">
+        <h2>Send notification</h2>
         <form id="add-notification-form" class="portal-form">
           <div class="form-grid">
-            <div class="form-group"><label>Title</label><input id="notif-title" required></div>
+            <div class="form-group"><label>Title</label><input id="notif-title" required placeholder="e.g. Holiday notice"></div>
             <div class="form-group"><label>Audience</label>
               <select id="notif-role" required>
-                <option value="all">All</option>
+                <option value="all">Everyone</option>
                 <option value="teacher">Teachers</option>
                 <option value="parent">Parents</option>
                 <option value="driver">Drivers</option>
                 <option value="admin">Admins</option>
               </select>
             </div>
-            <div class="form-group"><label>Category</label><input id="notif-category" placeholder="general"></div>
-            <div class="form-group" style="grid-column:1/-1"><label>Message</label><textarea id="notif-message" rows="3" required></textarea></div>
+            <div class="form-group"><label>Category</label>
+              <select id="notif-category">
+                <option value="general">General</option>
+                <option value="attendance">Attendance</option>
+                <option value="marks">Marks</option>
+                <option value="bus">Bus</option>
+                <option value="exam">Exam</option>
+                <option value="urgent">Urgent</option>
+                <option value="holiday">Holiday</option>
+                <option value="event">Event</option>
+              </select>
+            </div>
+            <div class="form-group" style="grid-column:1/-1"><label>Message</label><textarea id="notif-message" rows="4" required placeholder="Write your announcement…"></textarea></div>
           </div>
-          <div class="form-actions"><button type="submit" class="btn btn-primary">Send Notification</button></div>
+          <div class="form-actions"><button type="submit" class="btn btn-primary">Send notification</button></div>
         </form>
       </div>
-      <div class="table-container">
-        <table class="data-table">
-          <thead><tr><th>Title</th><th>Role</th><th>Category</th><th>Time</th><th>Actions</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="5" class="empty-state">No notifications.</td></tr>'}</tbody>
-        </table>
-      </div>
     `;
+
+    const sentSection = items.length
+      ? `<div class="notif-sent-section"><h2>Sent notifications</h2></div>`
+      : '';
+
+    featureDiv.innerHTML = renderNotificationsPage({
+      pageTitle: 'Notifications',
+      pageSubtitle: 'Broadcast messages to teachers, parents, drivers, or everyone.',
+      notifications: items,
+      emptyTitle: 'No messages sent yet',
+      emptyMessage: 'Use the form above to send your first announcement.',
+      showAudience: true,
+      showDelete: true,
+      deleteHandlerName: 'deleteNotification',
+      extraHtml: composeCard + sentSection,
+    });
 
     document.getElementById('add-notification-form').onsubmit = async (e) => {
       e.preventDefault();
       const title = document.getElementById('notif-title').value.trim();
       const role = document.getElementById('notif-role').value;
-      const category = document.getElementById('notif-category').value.trim() || 'general';
+      const category = document.getElementById('notif-category').value || 'general';
       const message = document.getElementById('notif-message').value.trim();
       if (!title || !message) {
         toast('Title and message are required.', 'error');
@@ -1696,7 +1706,10 @@ async function showNotificationManagement() {
     };
   } catch (e) {
     console.error(e);
-    featureDiv.innerHTML = '<div class="error-message">Error loading notifications.</div>';
+    featureDiv.innerHTML = renderNotificationsError(
+      'Notifications',
+      e.message || 'Error loading notifications.'
+    );
   }
 }
 

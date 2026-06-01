@@ -1,6 +1,12 @@
 import '../common/auth.js';
 import { onAuthChange, logout } from '../common/auth.js';
 import { getApiBase } from '../common/config.js';
+import {
+  fetchNotificationsForRoles,
+  renderNotificationsPage,
+  renderNotificationsLoading,
+  renderNotificationsError,
+} from '../common/notifications-ui.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, collection, query, where, getDocs, getDoc, setDoc, doc } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { app } from '../common/firebase-init.js';
@@ -912,29 +918,27 @@ async function showMarks(user) {
 async function showNotifications(user) {
   setActiveNav('notifications');
   const featureDiv = document.getElementById('feature-content');
-  featureDiv.innerHTML = '<h2>Notifications</h2><div class="loading">Loading...</div>';
+  featureDiv.innerHTML = renderNotificationsLoading('Notifications');
   try {
-    const notifQ = query(collection(db, 'notifications'), where('role', 'in', ['teacher', 'all']));
-    const notifSnap = await getDocs(notifQ);
-    let notifications = [];
-    notifSnap.forEach(doc => notifications.push(doc.data()));
-    notifications.sort((a, b) => (b.time || 0) - (a.time || 0));
-    if (!notifications.length) {
-      featureDiv.innerHTML = '<h2>Notifications</h2><div class="empty">No notifications found for you.</div>';
-      return;
-    }
-    let html = '<ul class="notifications-list" style="list-style:none;padding:0;">';
-    notifications.forEach(n => {
-      html += `<li style="margin-bottom:1em;">
-        <div><b>${n.title || 'Notification'}</b> <span style="color:#888;font-size:0.95em;">(${n.category || 'general'})</span></div>
-        <div>${n.message}</div>
-        <div style="font-size:0.9em;color:#888;">${n.time ? new Date(n.time).toLocaleString() : ''}</div>
-      </li>`;
+    const notifications = await fetchNotificationsForRoles(db, {
+      collection,
+      query,
+      where,
+      getDocs,
+    }, ['teacher', 'all']);
+    featureDiv.innerHTML = renderNotificationsPage({
+      pageTitle: 'Notifications',
+      pageSubtitle: 'Announcements and updates for teachers.',
+      notifications,
+      emptyTitle: 'No notifications',
+      emptyMessage: 'You are all caught up. New school messages will show here.',
     });
-    html += '</ul>';
-    featureDiv.innerHTML = '<h2>Notifications</h2>' + html;
   } catch (e) {
-    featureDiv.innerHTML = '<h2>Notifications</h2><div class="error">Error loading notifications.</div>';
+    console.error(e);
+    featureDiv.innerHTML = renderNotificationsError(
+      'Notifications',
+      e.message || 'Error loading notifications.'
+    );
   }
 }
 

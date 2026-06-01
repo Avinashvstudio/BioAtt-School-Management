@@ -3,6 +3,11 @@ import { onAuthChange, logout } from '../common/auth.js';
 import { getFirestore, collection, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { app } from '../common/firebase-init.js';
 import { getApiBase } from '../common/config.js';
+import {
+  renderNotificationsPage,
+  renderNotificationsLoading,
+  renderNotificationsError,
+} from '../common/notifications-ui.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 
 const db = getFirestore(app);
@@ -513,37 +518,23 @@ async function showBusTracking(user) {
 async function showNotifications(user) {
   setActiveNav('notifications');
   const featureDiv = document.getElementById('feature-content');
-  featureDiv.innerHTML = '<h2>Notifications</h2><div class="loading">Loading...</div>';
-  
+  featureDiv.innerHTML = renderNotificationsLoading('Notifications');
+
   try {
     const notifications = await fetchParentNotifications();
-
-    if (!notifications.length) {
-      featureDiv.innerHTML = '<h2>Notifications</h2><div class="empty">No notifications found.</div>';
-      return;
-    }
-
-    let html = '<h2>Notifications</h2><ul class="notifications-list">';
-
-    notifications.forEach(n => {
-      html += `
-        <li class="notification-item">
-          <div class="notification-header">
-            <span class="notification-title">${n.title || 'Notification'}</span>
-            <span class="notification-time">${n.time ? new Date(n.time).toLocaleString() : ''}</span>
-          </div>
-          <div class="notification-message">${n.message}</div>
-          <div class="notification-category">${n.category || 'General'}</div>
-        </li>
-      `;
+    featureDiv.innerHTML = renderNotificationsPage({
+      pageTitle: 'Notifications',
+      pageSubtitle: 'School announcements, attendance alerts, and updates for parents.',
+      notifications,
+      emptyTitle: 'No notifications yet',
+      emptyMessage: 'When the school sends an announcement, it will appear here.',
     });
-    
-    html += '</ul>';
-    featureDiv.innerHTML = html;
-    
   } catch (e) {
     console.error(e);
-    featureDiv.innerHTML = '<h2>Notifications</h2><div class="error">Error loading notifications.</div>';
+    featureDiv.innerHTML = renderNotificationsError(
+      'Notifications',
+      e.message || 'Error loading notifications.'
+    );
   }
 }
 
