@@ -52,6 +52,24 @@ def init_firebase_admin():
     return True
 
 
+def _verify_token_only():
+    """Verify Firebase ID token only (no Firestore profile required)."""
+    if _db is None:
+        return None, ('API not configured on server', 503)
+
+    header = request.headers.get('Authorization', '')
+    id_token = header.replace('Bearer ', '').strip()
+    if not id_token:
+        return None, ('Missing auth token', 401)
+
+    try:
+        decoded = auth.verify_id_token(id_token)
+    except Exception as exc:
+        return None, (f'Invalid token: {exc}', 401)
+
+    return decoded, None
+
+
 def _verify_token():
     if _db is None:
         return None, None, ('API not configured on server', 503)
@@ -78,7 +96,7 @@ def _verify_admin():
     _, profile, err = _verify_token()
     if err:
         return None, err
-    if profile.get('role') != 'admin':
+    if (profile.get('role') or '').strip().lower() != 'admin':
         return None, ('Admin access required', 403)
     return _, None
 
@@ -276,6 +294,48 @@ def register_admin_routes(app):
 
         _db.collection('users').document(user_record.uid).set(profile, merge=True)
         return jsonify({'ok': True, 'uid': user_record.uid})
+
+    @app.route('/api/admin/users/ensure-profile', methods=['POST'])
+    def admin_ensure_user_profile():
+        """Create or fix Firestore profile for an existing Firebase Auth email."""
+        _, err = _verify_admin()
+        if err:
+            return jsonify({'error': err[0]}), err[1]
+
+        data = request.get_json(silent=True) or {}
+        email = _normalize_email(data.get('email'))
+        role = (data.get('role') or '').strip().lower()
+        name = (data.get('name') or '').strip()
+
+        if not email or not role:
+            return jsonify({'error': 'email and role are required'}), 400
+        if role not in ('admin', 'teacher', 'parent', 'driver'):
+            return jsonify({'error': 'Invalid role'}), 400
+
+        try:
+            auth_user = auth.get_user_by_email(email)
+        except Exception:
+            return jsonify({
+                'error': f'No Firebase Auth account for {email}. Use Add New User to create login first.',
+            }), 404
+
+        from datetime import datetime, timezone
+
+        profile = _filter_fields(data, user_fields)
+        profile.update({
+            'name': name or auth_user.display_name or email,
+            'email': email,
+            'role': role,
+            'updatedAt': datetime.now(timezone.utc).isoformat(),
+        })
+        profile.setdefault('createdAt', datetime.now(timezone.utc).isoformat())
+
+        _db.collection('users').document(auth_user.uid).set(profile, merge=True)
+        return jsonify({
+            'ok': True,
+            'uid': auth_user.uid,
+            'message': 'Profile saved. User can log in with this role now.',
+        })
 
     @app.route('/api/admin/users/<user_id>', methods=['PUT', 'PATCH'])
     def admin_update_user(user_id):
@@ -487,3 +547,23 @@ def register_admin_routes(app):
                 items.append(row)
         items.sort(key=lambda x: x.get('time') or '', reverse=True)
         return jsonify({'notifications': items})
+
+    @app.route('/api/user/profile', methods=['GET'])
+    def user_profile():
+        decoded, err = _verify_token_only()
+        if err:
+            return jsonify({'error': err[0]}), err[1]
+
+        uid = decoded['uid']
+        doc = _db.collection('users').document(uid).get()
+        if not doc.exists():
+            return jsonify({
+                'error': 'User profile not found in Firestore',
+                'uid': uid,
+                'email': decoded.get('email', ''),
+                'hint': 'Ask admin: Users → fill email/name/role → click Repair profile.',
+            }), 404
+
+        profile = doc.to_dict()
+        profile['uid'] = uid
+        return jsonify({'profile': profile})

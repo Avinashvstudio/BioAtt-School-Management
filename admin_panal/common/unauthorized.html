@@ -90,15 +90,37 @@
     <div class="unauthorized-card">
       <div class="unauthorized-icon">🚫</div>
       <h1 class="unauthorized-title">Access Denied</h1>
-      <p class="unauthorized-message">
+      <p class="unauthorized-message" id="unauthorized-message">
         You don't have permission to access this portal. 
         Please contact your administrator if you believe this is an error.
       </p>
+      <p class="unauthorized-detail" id="unauthorized-detail" style="font-size:0.95rem;opacity:0.9;margin-bottom:1.5rem;display:none;"></p>
       <div class="unauthorized-actions">
         <a href="login.html" class="btn-unauthorized btn-primary">Go to Login</a>
         <button onclick="history.back()" class="btn-unauthorized btn-secondary">Go Back</button>
       </div>
     </div>
   </div>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const reason = params.get('reason') || '';
+      const detail = params.get('detail') || '';
+      const msg = document.getElementById('unauthorized-message');
+      const extra = document.getElementById('unauthorized-detail');
+      const hints = {
+        missing_profile: 'Your login exists but there is no user profile in the database. Admin must open Users, enter your email and role Driver, then click Repair profile.',
+        wrong_role: 'You are signed in with a different role than this portal. Log out completely, then log in with the correct account.',
+        error: 'Could not verify your account. Try again or contact admin.',
+      };
+      if (reason && hints[reason]) {
+        msg.textContent = hints[reason];
+      }
+      if (detail) {
+        extra.style.display = 'block';
+        extra.textContent = detail;
+      }
+    })();
+  </script>
 </body>
 </html>

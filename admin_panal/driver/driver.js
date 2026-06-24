@@ -36,13 +36,12 @@ function renderLogin(error = '') {
 }
 
 async function renderDashboard(user) {
-  const profileSnap = await getDoc(doc(db, 'users', user.uid));
-  if (!profileSnap.exists()) {
+  const profile = await loadUserProfile(user);
+  if (!profile) {
     mainDiv.innerHTML = `<div class="error">Driver profile not found. Ask admin to recreate your account from Users → Add New User.</div><button class="logout-btn" id="logout-btn">Logout</button>`;
     document.getElementById('logout-btn').onclick = () => signOut(auth);
     return;
   }
-  const profile = profileSnap.data();
   if ((profile.role || '').trim().toLowerCase() !== 'driver') {
     mainDiv.innerHTML = `<div class="error">This account is not a driver (role: ${profile.role || 'unknown'}).</div><button class="logout-btn" id="logout-btn">Logout</button>`;
     document.getElementById('logout-btn').onclick = () => signOut(auth);
@@ -219,8 +218,7 @@ async function showNotifications() {
   }
 }
 
-// Import the onAuthChange function
-import { onAuthChange } from '../common/auth.js';
+import { onAuthChange, logout, loadUserProfile } from '../common/auth.js';
 
 // Use role-based authentication
 onAuthChange(renderPortal, 'driver');
@@ -228,9 +226,6 @@ onAuthChange(renderPortal, 'driver');
 function renderPortal(user) {
   if (user) {
     renderDashboard(user);
-    // In your main driver portal logic, add event listeners for nav buttons:
-    document.getElementById('nav-notifications').onclick = showNotifications;
-    document.getElementById('nav-dashboard').onclick = () => renderDashboard(auth.currentUser);
   } else {
     renderLogin();
   }

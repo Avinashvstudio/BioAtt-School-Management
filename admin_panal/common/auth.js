@@ -1,6 +1,7 @@
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { app } from './firebase-init.js';
+import { getApiBase } from './config.js';
 
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -32,7 +33,6 @@ if (authToggleLink) {
       ? "Don't have an account? <a href='#' id='auth-toggle-link'>Sign up</a>"
       : "Already have an account? <a href='#' id='auth-toggle-link'>Login</a>";
     authError.textContent = '';
-    // Re-attach event listener to new link
     document.getElementById('auth-toggle-link').addEventListener('click', arguments.callee);
   });
 }
@@ -56,33 +56,63 @@ if (authForm) {
   });
 }
 
+function redirectUnauthorized(reason, detail = '') {
+  const params = new URLSearchParams({ reason });
+  if (detail) params.set('detail', detail);
+  window.location.href = `../common/unauthorized.html?${params.toString()}`;
+}
+
+export async function loadUserProfile(user) {
+  if (!user) return null;
+
+  try {
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    if (userDoc.exists()) return userDoc.data();
+  } catch (error) {
+    console.warn('Firestore profile read failed, trying API:', error);
+  }
+
+  try {
+    const token = await user.getIdToken();
+    const res = await fetch(`${getApiBase()}/api/user/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.profile) return data.profile;
+    console.warn('API profile:', data.error || res.status);
+  } catch (error) {
+    console.warn('API profile fetch failed:', error);
+  }
+
+  return null;
+}
+
 export function onAuthChange(callback, requiredRole = null) {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       console.log('User authenticated:', user.email);
-      
-      // If role is required, verify it
+
       if (requiredRole) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            const actualRole = (userData.role || '').trim().toLowerCase();
-            const expectedRole = String(requiredRole).trim().toLowerCase();
-            if (actualRole === expectedRole) {
-              console.log('Role verified:', userData.role);
-              callback(user);
-            } else {
-              console.log('Access denied: User role', userData.role, 'does not match required role', requiredRole);
-              window.location.href = '../common/unauthorized.html';
-            }
-          } else {
+          const userData = await loadUserProfile(user);
+          if (!userData) {
             console.log('User document not found for uid', user.uid);
-            window.location.href = '../common/unauthorized.html';
+            redirectUnauthorized('missing_profile', user.email || '');
+            return;
+          }
+
+          const actualRole = (userData.role || '').trim().toLowerCase();
+          const expectedRole = String(requiredRole).trim().toLowerCase();
+          if (actualRole === expectedRole) {
+            console.log('Role verified:', userData.role);
+            callback(user);
+          } else {
+            console.log('Access denied: role', userData.role, 'expected', requiredRole);
+            redirectUnauthorized('wrong_role', `${userData.role || 'unknown'} → need ${requiredRole}`);
           }
         } catch (error) {
           console.error('Error verifying role:', error);
-          window.location.href = '../common/unauthorized.html';
+          redirectUnauthorized('error', error.message || '');
         }
       } else {
         callback(user);
@@ -102,4 +132,4 @@ export async function logout() {
     console.error('Error signing out:', error);
     throw error;
   }
-} 
+}

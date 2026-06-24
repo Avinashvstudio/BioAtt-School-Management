@@ -1,9 +1,8 @@
-import { getAuth, signInWithEmailAndPassword, setPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword, signOut, setPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { app } from './firebase-init.js';
+import { loadUserProfile } from './auth.js';
 
 const auth = getAuth(app);
-const db = getFirestore(app);
 
 let persistenceInitialized = false;
 
@@ -66,18 +65,17 @@ async function handleLogin(e) {
     console.log('Firebase Auth successful for user:', user.email);
     console.log('User UID:', user.uid);
     
-    // Fetch user doc from Firestore using the user's UID (more reliable)
-    console.log('Fetching user document from Firestore...');
-    const userDocRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userDocRef);
-    
-    if (!userSnap.exists()) {
+    console.log('User UID:', user.uid);
+
+    const userData = await loadUserProfile(user);
+
+    if (!userData) {
       console.error('No user profile found in Firestore');
-      showError('User profile not found. Please contact administrator.');
+      showError('User profile not found. Ask admin to use Users → Repair profile for your email.');
+      await signOut(auth);
       return;
     }
-    
-    const userData = userSnap.data();
+
     console.log('User data from Firestore:', userData);
     console.log('User role:', userData.role);
     

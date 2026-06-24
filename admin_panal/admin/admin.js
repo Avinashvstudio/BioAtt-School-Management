@@ -849,6 +849,7 @@ async function showAddUserForm() {
         </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Create User</button>
+          <button type="button" class="btn btn-secondary" id="repair-user-btn">Repair profile for this email</button>
           <button type="button" class="btn btn-secondary" onclick="showUserManagement()">Cancel</button>
         </div>
       </form>
@@ -864,6 +865,23 @@ async function showAddUserForm() {
     if (parentHint) parentHint.style.display = role === 'parent' ? '' : 'none';
     const driverHint = document.getElementById('driver-hint-group');
     if (driverHint) driverHint.style.display = role === 'driver' ? '' : 'none';
+  };
+
+  document.getElementById('repair-user-btn').onclick = async () => {
+    const name = document.getElementById('user-name').value.trim();
+    const email = document.getElementById('user-email').value.trim().toLowerCase();
+    const role = document.getElementById('user-role').value;
+    if (!email || !role) {
+      toast('Enter email and role first.', 'error');
+      return;
+    }
+    try {
+      const data = await adminApi('/api/admin/users/ensure-profile', 'POST', { name, email, role });
+      toast(data.message || 'Profile repaired.', 'success');
+      showUserManagement();
+    } catch (error) {
+      toast(error.message, 'error');
+    }
   };
   
   // Form submission

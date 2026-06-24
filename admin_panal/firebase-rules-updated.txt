@@ -8,7 +8,8 @@ service cloud.firestore {
     
     // Helper function to check if user has specific role
     function hasRole(role) {
-      return request.auth != null && getUserRole() == role;
+      return request.auth != null
+        && getUserRole().lower() == role.lower();
     }
     
     // Helper function to check if user has any of the specified roles
@@ -43,7 +44,7 @@ service cloud.firestore {
       function isAdmin() {
         return request.auth != null
           && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && callerData().role == 'admin';
+          && callerData().role.lower() == 'admin';
       }
 
       // Signup / admin user creation
