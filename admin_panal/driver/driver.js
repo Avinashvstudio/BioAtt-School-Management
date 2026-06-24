@@ -36,13 +36,19 @@ function renderLogin(error = '') {
 }
 
 async function renderDashboard(user) {
-  // Fetch driver user doc
-  const userSnap = await getDocs(query(collection(db, 'users'), where('email', '==', user.email), where('role', '==', 'driver')));
-  if (userSnap.empty) {
-    mainDiv.innerHTML = `<div class="error">You are not registered as a driver.</div>`;
+  const profileSnap = await getDoc(doc(db, 'users', user.uid));
+  if (!profileSnap.exists()) {
+    mainDiv.innerHTML = `<div class="error">Driver profile not found. Ask admin to recreate your account from Users → Add New User.</div><button class="logout-btn" id="logout-btn">Logout</button>`;
+    document.getElementById('logout-btn').onclick = () => signOut(auth);
     return;
   }
-  const driver = userSnap.docs[0].data();
+  const profile = profileSnap.data();
+  if ((profile.role || '').trim().toLowerCase() !== 'driver') {
+    mainDiv.innerHTML = `<div class="error">This account is not a driver (role: ${profile.role || 'unknown'}).</div><button class="logout-btn" id="logout-btn">Logout</button>`;
+    document.getElementById('logout-btn').onclick = () => signOut(auth);
+    return;
+  }
+  const driver = profile;
   // Fetch bus info
   const busSnap = await getDocs(query(collection(db, 'buses'), where('driverId', '==', user.uid)));
   if (busSnap.empty) {

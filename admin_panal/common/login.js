@@ -97,19 +97,19 @@ async function handleLogin(e) {
       // Continue with login even if session fails
     }
     
-    // Redirect based on role
-    console.log('Redirecting based on role:', userData.role);
-    
-    if (userData.role === 'admin') {
+    const role = (userData.role || '').trim().toLowerCase();
+    console.log('Redirecting based on role:', role);
+
+    if (role === 'admin') {
       window.location.href = '/admin_panal/admin/index.html';
-    } else if (userData.role === 'teacher') {
+    } else if (role === 'teacher') {
       window.location.href = '/admin_panal/teacher/index.html';
-    } else if (userData.role === 'parent') {
+    } else if (role === 'parent') {
       window.location.href = '/admin_panal/parent/index.html';
-    } else if (userData.role === 'driver') {
+    } else if (role === 'driver') {
       window.location.href = '/admin_panal/driver/index.html';
     } else {
-      showError('Unknown user role: ' + userData.role);
+      showError('Unknown user role: ' + (userData.role || '(empty)'));
     }
     
   } catch (error) {

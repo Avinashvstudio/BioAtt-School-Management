@@ -222,9 +222,60 @@ def register_admin_routes(app):
     if not init_firebase_admin():
         return
 
-    user_fields = {'name', 'email', 'role', 'className', 'section', 'subjects', 'updatedAt', 'createdAt'}
+    user_fields = {'name', 'email', 'role', 'className', 'section', 'subjects', 'assignedBuses', 'updatedAt', 'createdAt'}
     student_fields = {'name', 'class', 'section', 'parentEmail', 'bus', 'updatedAt', 'createdAt'}
     class_fields = {'name', 'section', 'teacherId', 'teacherName', 'updatedAt', 'createdAt'}
+
+    @app.route('/api/admin/users', methods=['POST'])
+    def admin_create_user():
+        _, err = _verify_admin()
+        if err:
+            return jsonify({'error': err[0]}), err[1]
+
+        data = request.get_json(silent=True) or {}
+        email = _normalize_email(data.get('email'))
+        password = data.get('password') or ''
+        name = (data.get('name') or '').strip()
+        role = (data.get('role') or '').strip().lower()
+
+        if not name or not email or not password or not role:
+            return jsonify({'error': 'name, email, password, and role are required'}), 400
+        if role not in ('admin', 'teacher', 'parent', 'driver'):
+            return jsonify({'error': 'Invalid role'}), 400
+        if len(password) < 6:
+            return jsonify({'error': 'Password must be at least 6 characters'}), 400
+        if role == 'teacher':
+            if not (data.get('className') or '').strip() or not (data.get('section') or '').strip():
+                return jsonify({'error': 'Teachers need className and section'}), 400
+
+        try:
+            user_record = auth.create_user(
+                email=email,
+                password=password,
+                display_name=name,
+            )
+        except Exception as exc:
+            msg = str(exc)
+            if 'EMAIL_EXISTS' in msg or 'already exists' in msg.lower():
+                return jsonify({'error': 'This email is already registered. Edit the existing user or use another email.'}), 409
+            return jsonify({'error': msg}), 400
+
+        from datetime import datetime, timezone
+
+        profile = _filter_fields(data, user_fields)
+        profile.update({
+            'name': name,
+            'email': email,
+            'role': role,
+            'createdAt': datetime.now(timezone.utc).isoformat(),
+        })
+        if role != 'teacher':
+            profile.setdefault('className', '')
+            profile.setdefault('section', '')
+            profile.setdefault('subjects', '')
+
+        _db.collection('users').document(user_record.uid).set(profile, merge=True)
+        return jsonify({'ok': True, 'uid': user_record.uid})
 
     @app.route('/api/admin/users/<user_id>', methods=['PUT', 'PATCH'])
     def admin_update_user(user_id):

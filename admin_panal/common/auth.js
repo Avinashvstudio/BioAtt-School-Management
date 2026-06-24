@@ -67,16 +67,17 @@ export function onAuthChange(callback, requiredRole = null) {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            if (userData.role === requiredRole) {
+            const actualRole = (userData.role || '').trim().toLowerCase();
+            const expectedRole = String(requiredRole).trim().toLowerCase();
+            if (actualRole === expectedRole) {
               console.log('Role verified:', userData.role);
               callback(user);
             } else {
               console.log('Access denied: User role', userData.role, 'does not match required role', requiredRole);
-              // Redirect to unauthorized page
               window.location.href = '../common/unauthorized.html';
             }
           } else {
-            console.log('User document not found');
+            console.log('User document not found for uid', user.uid);
             window.location.href = '../common/unauthorized.html';
           }
         } catch (error) {

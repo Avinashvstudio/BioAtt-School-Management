@@ -1,7 +1,7 @@
 import '../common/auth.js';
 import { onAuthChange, logout } from '../common/auth.js';
 import { getFirestore, collection, query, where, getDocs, getDoc, setDoc, doc, deleteDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { getAuth, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+import { getAuth } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { app } from '../common/firebase-init.js';
 import {
   renderNotificationsPage,
@@ -842,6 +842,10 @@ async function showAddUserForm() {
             <label>Children (Class / Section)</label>
             <p class="form-hint">After creating the parent, open <strong>Students</strong> and set each child's <em>Parent Email</em> to this parent's address. Class/section will appear here automatically.</p>
           </div>
+          <div class="form-group driver-fields" id="driver-hint-group" style="display:none;grid-column:1/-1">
+            <label>Bus assignment</label>
+            <p class="form-hint">After creating the driver, add or edit a bus in Firebase / demo data and set <em>driverId</em> to this driver's UID (shown in Users list after save).</p>
+          </div>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Create User</button>
@@ -858,6 +862,8 @@ async function showAddUserForm() {
     });
     const parentHint = document.getElementById('parent-hint-group');
     if (parentHint) parentHint.style.display = role === 'parent' ? '' : 'none';
+    const driverHint = document.getElementById('driver-hint-group');
+    if (driverHint) driverHint.style.display = role === 'driver' ? '' : 'none';
   };
   
   // Form submission
@@ -887,24 +893,19 @@ async function showAddUserForm() {
     }
     
     try {
-      // Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      // Create user document in Firestore
-      await setDoc(doc(db, 'users', user.uid), {
+      await adminApi('/api/admin/users', 'POST', {
         name,
         email,
+        password,
         role,
         className: className || '',
         section: section || '',
         subjects: subjects || '',
-        createdAt: new Date().toISOString()
       });
-      
-      toast('User created successfully.', 'success');
+
+      toast('User created successfully. They can log in from the login page.', 'success');
       showUserManagement();
-      
+
     } catch (error) {
       toast('Error creating user: ' + error.message, 'error');
     }
@@ -1967,9 +1968,9 @@ window.editUser = async function(userId) {
     document.getElementById('edit-user-form').onsubmit = async (e) => {
       e.preventDefault();
       try {
-        const role = document.getElementById('edit-user-role').value;
+        const role = document.getElementById('edit-user-role').value.trim().toLowerCase();
         const payload = {
-          name: normalizeClassName(document.getElementById('edit-user-name').value),
+          name: document.getElementById('edit-user-name').value.trim(),
           email: document.getElementById('edit-user-email').value.trim().toLowerCase(),
           role,
           updatedAt: new Date().toISOString()
