@@ -98,6 +98,34 @@ async function fetchDrivers() {
   return drivers.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+async function fetchBusesList() {
+  const snap = await getDocs(collection(db, 'buses'));
+  const buses = [];
+  snap.forEach(d => {
+    const b = d.data();
+    const number = (b.number || '').trim();
+    if (!number) return;
+    buses.push({ id: d.id, number, route: (b.route || '').trim() });
+  });
+  return buses.sort((a, b) => a.number.localeCompare(b.number));
+}
+
+function buildBusSelectHtml(buses, selectedBus = '') {
+  const selected = (selectedBus || '').trim();
+  let html = '<option value="">No bus</option>';
+  const numbers = new Set();
+  buses.forEach(b => {
+    numbers.add(b.number);
+    const label = b.route ? `${b.number} — ${b.route}` : b.number;
+    const sel = b.number === selected ? ' selected' : '';
+    html += `<option value="${escapeHtml(b.number)}"${sel}>${escapeHtml(label)}</option>`;
+  });
+  if (selected && !numbers.has(selected)) {
+    html += `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)} (not in bus list)</option>`;
+  }
+  return html;
+}
+
 function busDocId(number) {
   const n = (number || '').trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
   return n ? `bus_${n}` : `bus_${Date.now()}`;
@@ -1176,7 +1204,11 @@ function setupStudentFilters() {
 async function showAddStudentForm() {
   const featureDiv = document.getElementById('feature-content');
   featureDiv.innerHTML = '<div class="loading">Loading form...</div>';
-  const classSelect = await buildClassSectionSelectHtml();
+  const [classSelect, buses] = await Promise.all([
+    buildClassSectionSelectHtml(),
+    fetchBusesList(),
+  ]);
+  const busSelectHtml = buildBusSelectHtml(buses);
 
   featureDiv.innerHTML = `
     <div class="page-header">
@@ -1201,7 +1233,8 @@ async function showAddStudentForm() {
           </div>
           <div class="form-group">
             <label for="student-bus">Bus (optional)</label>
-            <input type="text" id="student-bus" placeholder="e.g. Bus 12">
+            <select id="student-bus">${busSelectHtml}</select>
+            ${buses.length ? '' : '<p class="form-hint"><a href="#" id="goto-add-bus">Add a bus</a> under Buses &amp; Routes first.</p>'}
           </div>
         </div>
         <div class="form-actions">
@@ -1215,6 +1248,10 @@ async function showAddStudentForm() {
   document.getElementById('goto-add-class')?.addEventListener('click', (e) => {
     e.preventDefault();
     showClassManagement();
+  });
+  document.getElementById('goto-add-bus')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    showBusManagement();
   });
 
   document.getElementById('add-student-form').onsubmit = async (e) => {
@@ -2237,7 +2274,11 @@ window.editStudent = async function(studentId) {
       return showStudentManagement();
     }
     const s = studentSnap.data();
-    const classSelect = await buildClassSectionSelectHtml(s.class, s.section);
+    const [classSelect, buses] = await Promise.all([
+      buildClassSectionSelectHtml(s.class, s.section),
+      fetchBusesList(),
+    ]);
+    const busSelectHtml = buildBusSelectHtml(buses, s.bus);
     featureDiv.innerHTML = `
       <div class="page-header"><h1>Edit Student</h1><p>${escapeHtml(s.name)}</p></div>
       <div class="form-container">
@@ -2249,7 +2290,7 @@ window.editStudent = async function(studentId) {
               <select id="edit-stu-class-section" required>${classSelect.html}</select>
             </div>
             <div class="form-group"><label>Parent Email</label><input type="email" id="edit-stu-email" value="${escapeHtml(s.parentEmail || '')}" required></div>
-            <div class="form-group"><label>Bus</label><input id="edit-stu-bus" value="${escapeHtml(s.bus || '')}"></div>
+            <div class="form-group"><label>Bus</label><select id="edit-stu-bus">${busSelectHtml}</select></div>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">Save</button>
