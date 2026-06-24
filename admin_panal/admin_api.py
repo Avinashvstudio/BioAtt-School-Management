@@ -119,6 +119,25 @@ def _verify_parent():
     return decoded, profile, None
 
 
+def _verify_driver():
+    decoded, profile, err = _verify_token()
+    if err:
+        return None, None, err
+    if (profile.get('role') or '').strip().lower() not in ('driver', 'admin'):
+        return None, None, ('Driver access required', 403)
+    return decoded, profile, None
+
+
+def _driver_owns_bus(uid, bus_number):
+    target = (bus_number or '').strip()
+    if not target:
+        return False
+    for doc in _db.collection('buses').where('driverId', '==', uid).stream():
+        if (doc.to_dict().get('number') or '').strip() == target:
+            return True
+    return False
+
+
 def _normalize_email(email):
     return (email or '').strip().lower()
 
@@ -567,3 +586,86 @@ def register_admin_routes(app):
         profile = doc.to_dict()
         profile['uid'] = uid
         return jsonify({'profile': profile})
+
+    @app.route('/api/driver/bus-attendance', methods=['GET', 'POST'])
+    def driver_bus_attendance():
+        decoded, profile, err = _verify_driver()
+        if err:
+            return jsonify({'error': err[0]}), err[1]
+
+        uid = decoded['uid']
+
+        if request.method == 'GET':
+            bus_number = (request.args.get('busNumber') or '').strip()
+            student_id = (request.args.get('studentId') or '').strip()
+            date_str = (request.args.get('date') or '').strip()
+            if not bus_number or not student_id or not date_str:
+                return jsonify({'error': 'busNumber, studentId, and date are required'}), 400
+            if profile.get('role') != 'admin' and not _driver_owns_bus(uid, bus_number):
+                return jsonify({'error': 'Not your assigned bus'}), 403
+
+            doc_id = f'{bus_number}_{student_id}_{date_str}'
+            doc = _db.collection('bus_attendance').document(doc_id).get()
+            if not doc.exists:
+                return jsonify({'record': None})
+            row = doc.to_dict()
+            row['id'] = doc.id
+            return jsonify({'record': row})
+
+        data = request.get_json(silent=True) or {}
+        bus_number = (data.get('busNumber') or '').strip()
+        student_id = (data.get('studentId') or '').strip()
+        event_type = (data.get('type') or '').strip().lower()
+        date_str = (data.get('date') or '').strip()
+        parent_email = _normalize_email(data.get('parentEmail'))
+        student_name = (data.get('studentName') or '').strip()
+
+        if not bus_number or not student_id or event_type not in ('picked', 'dropped'):
+            return jsonify({'error': 'busNumber, studentId, and type (picked|dropped) are required'}), 400
+        if profile.get('role') != 'admin' and not _driver_owns_bus(uid, bus_number):
+            return jsonify({'error': 'Not your assigned bus'}), 403
+
+        from datetime import datetime, timezone
+
+        if not date_str:
+            date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        doc_id = f'{bus_number}_{student_id}_{date_str}'
+        update = {
+            'busNumber': bus_number,
+            'studentId': student_id,
+            'driverId': uid,
+            'date': date_str,
+        }
+        if event_type == 'picked':
+            update['pickupTime'] = now_iso
+        else:
+            update['dropTime'] = now_iso
+
+        _db.collection('bus_attendance').document(doc_id).set(update, merge=True)
+
+        notification_created = False
+        if parent_email and student_name:
+            if event_type == 'picked':
+                title = 'Bus Pickup Notification'
+                message = f'{student_name} has been picked up by the bus.'
+            else:
+                title = 'Bus Drop Notification'
+                message = f'{student_name} has been dropped off by the bus.'
+            _db.collection('notifications').add({
+                'title': title,
+                'message': message,
+                'recipientEmail': parent_email,
+                'recipientRole': 'parent',
+                'studentId': student_id,
+                'timestamp': int(datetime.now(timezone.utc).timestamp() * 1000),
+                'busNumber': bus_number,
+            })
+            notification_created = True
+
+        return jsonify({
+            'ok': True,
+            'recordId': doc_id,
+            'notificationCreated': notification_created,
+        })

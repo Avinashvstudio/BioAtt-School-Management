@@ -155,6 +155,10 @@ service cloud.firestore {
       
       // Teachers can create notifications for their classes
       allow create: if hasRole('teacher');
+
+      // Drivers can notify parents about bus pickup/drop
+      allow create: if hasRole('driver')
+        && request.resource.data.recipientRole == 'parent';
     }
     
     // Buses collection - role-based access
@@ -175,9 +179,14 @@ service cloud.firestore {
       // Admins can read/write all bus attendance
       allow read, write: if hasRole('admin');
       
-      // Drivers can read/write attendance for their buses
-      allow read, write: if hasRole('driver') && 
-        resource.data.busNumber in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedBuses;
+      // Drivers read/write attendance they recorded (driverId on the document)
+      allow create: if hasRole('driver')
+        && request.resource.data.driverId == request.auth.uid;
+      allow update: if hasRole('driver')
+        && request.resource.data.driverId == request.auth.uid
+        && resource.data.driverId == request.auth.uid;
+      allow read: if hasRole('driver')
+        && resource.data.driverId == request.auth.uid;
       
       // Parents read bus attendance for their children
       allow read: if hasRole('parent') && (

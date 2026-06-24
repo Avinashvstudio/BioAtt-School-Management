@@ -16,6 +16,42 @@ const db = getFirestore(app);
 const mainDiv = document.getElementById('driver-main');
 let locationInterval = null;
 
+async function getAuthToken() {
+  const user = auth.currentUser;
+  if (!user) return null;
+  return user.getIdToken();
+}
+
+function formatBusStatus(att) {
+  if (!att) return '';
+  let status = '';
+  if (att.pickupTime) status += `Picked Up: ${new Date(att.pickupTime).toLocaleTimeString()}`;
+  if (att.dropTime) status += `${status ? '<br>' : ''}Dropped: ${new Date(att.dropTime).toLocaleTimeString()}`;
+  return status;
+}
+
+async function sendParentBusEmail(student, bus, type) {
+  if (!student.parentEmail) return false;
+  try {
+    const res = await fetch(`${getApiBase()}/send-bus-notification-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parent_email: student.parentEmail,
+        student_name: student.name,
+        type,
+        bus_number: bus.number,
+        timestamp: new Date().toLocaleString(),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok && data.status === 'sent';
+  } catch (e) {
+    console.warn('Email send failed:', e);
+    return false;
+  }
+}
+
 async function handleLogout() {
   if (locationInterval) {
     clearInterval(locationInterval);
@@ -96,69 +132,135 @@ async function renderDashboard(user) {
   students.forEach(s => {
     document.querySelector(`#student-${s.id} .picked-btn`).onclick = () => markAttendance(bus, s, 'picked');
     document.querySelector(`#student-${s.id} .dropped-btn`).onclick = () => markAttendance(bus, s, 'dropped');
-    // Optionally, load and show last status/timestamp
     loadLastStatus(bus, s);
   });
 }
 
-async function markAttendance(bus, student, type) {
-  const today = new Date().toISOString().slice(0, 10);
+async function saveBusAttendance(bus, student, type, today) {
+  const driverId = auth.currentUser?.uid || bus.driverId;
   const attRef = doc(db, 'bus_attendance', `${bus.number}_${student.id}_${today}`);
-  let update = {};
+  const update = {
+    busNumber: bus.number,
+    studentId: student.id,
+    driverId,
+    date: today,
+  };
   if (type === 'picked') update.pickupTime = new Date().toISOString();
-  if (type === 'dropped') update.dropTime = new Date().toISOString();
-  update.busNumber = bus.number;
-  update.studentId = student.id;
-  update.driverId = bus.driverId;
-  update.date = today;
-  await setDoc(attRef, update, { merge: true });
+  else update.dropTime = new Date().toISOString();
 
-  const parentEmail = student.parentEmail;
-  if (parentEmail) {
-    let notifTitle = '';
-    let notifMsg = '';
-    if (type === 'picked') {
-      notifTitle = 'Bus Pickup Notification';
-      notifMsg = `${student.name} has been picked up by the bus.`;
-    } else if (type === 'dropped') {
-      notifTitle = 'Bus Drop Notification';
-      notifMsg = `${student.name} has been dropped off by the bus.`;
-    }
+  try {
+    await setDoc(attRef, update, { merge: true });
+    return { usedApi: false, update };
+  } catch (clientErr) {
+    console.warn('Client bus attendance save failed, trying API:', clientErr);
+    const token = await getAuthToken();
+    if (!token) throw clientErr;
+    const res = await fetch(`${getApiBase()}/api/driver/bus-attendance`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        busNumber: bus.number,
+        studentId: student.id,
+        type,
+        date: today,
+        parentEmail: student.parentEmail || '',
+        studentName: student.name || '',
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || clientErr.message);
+    return { usedApi: true, update };
+  }
+}
+
+async function notifyParentBusEvent(bus, student, type) {
+  if (!student.parentEmail) return;
+  let notifTitle = '';
+  let notifMsg = '';
+  if (type === 'picked') {
+    notifTitle = 'Bus Pickup Notification';
+    notifMsg = `${student.name} has been picked up by the bus.`;
+  } else if (type === 'dropped') {
+    notifTitle = 'Bus Drop Notification';
+    notifMsg = `${student.name} has been dropped off by the bus.`;
+  }
+  try {
     await addDoc(collection(db, 'notifications'), {
       title: notifTitle,
       message: notifMsg,
-      recipientEmail: parentEmail,
+      recipientEmail: student.parentEmail,
       recipientRole: 'parent',
       studentId: student.id,
       timestamp: Date.now(),
-      busNumber: bus.number
+      busNumber: bus.number,
     });
-    fetch(`${getApiBase()}/send-bus-notification-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        parent_email: parentEmail,
-        student_name: student.name,
-        type: type,
-        bus_number: bus.number,
-        timestamp: new Date().toLocaleString()
-      })
-    });
+  } catch (e) {
+    console.warn('In-app notification failed (parent may still get email):', e);
   }
+}
 
-  loadLastStatus(bus, student);
+async function markAttendance(bus, student, type) {
+  const tsEl = document.getElementById(`timestamp-${student.id}`);
+  if (tsEl) tsEl.textContent = 'Saving...';
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const { usedApi } = await saveBusAttendance(bus, student, type, today);
+
+    if (!usedApi) {
+      await notifyParentBusEvent(bus, student, type);
+    }
+
+    let emailSent = false;
+    if (student.parentEmail) {
+      emailSent = await sendParentBusEmail(student, bus, type);
+    }
+
+    await loadLastStatus(bus, student);
+    if (tsEl && !student.parentEmail) {
+      const existing = tsEl.innerHTML;
+      if (existing) tsEl.innerHTML = existing + '<br><span style="color:#888">No parent email on file</span>';
+    } else if (tsEl && student.parentEmail) {
+      const existing = tsEl.innerHTML;
+      const emailNote = emailSent
+        ? '<br><span style="color:#4caf50">Parent notified by email</span>'
+        : '<br><span style="color:#888">In-app notification saved (email not configured)</span>';
+      if (!existing.includes('Parent notified')) tsEl.innerHTML = existing + emailNote;
+    }
+  } catch (e) {
+    console.error(e);
+    if (tsEl) tsEl.innerHTML = `<span class="error">Failed: ${e.message || 'permission error'}</span>`;
+  }
 }
 
 async function loadLastStatus(bus, student) {
   const today = new Date().toISOString().slice(0, 10);
-  const attSnap = await getDocs(query(collection(db, 'bus_attendance'), where('busNumber', '==', bus.number), where('studentId', '==', student.id), where('date', '==', today)));
-  let status = '';
-  if (!attSnap.empty) {
-    const att = attSnap.docs[0].data();
-    if (att.pickupTime) status += `Picked Up: ${new Date(att.pickupTime).toLocaleTimeString()}`;
-    if (att.dropTime) status += `<br>Dropped: ${new Date(att.dropTime).toLocaleTimeString()}`;
+  const tsEl = document.getElementById(`timestamp-${student.id}`);
+  if (!tsEl) return;
+  let att = null;
+  try {
+    const attRef = doc(db, 'bus_attendance', `${bus.number}_${student.id}_${today}`);
+    const snap = await getDoc(attRef);
+    if (snap.exists()) att = snap.data();
+  } catch (e) {
+    console.warn('Client load status failed, trying API:', e);
+    const token = await getAuthToken();
+    if (token) {
+      const qs = new URLSearchParams({
+        busNumber: bus.number,
+        studentId: student.id,
+        date: today,
+      });
+      const res = await fetch(`${getApiBase()}/api/driver/bus-attendance?${qs}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.record) att = data.record;
+    }
   }
-  document.getElementById(`timestamp-${student.id}`).innerHTML = status;
+  tsEl.innerHTML = formatBusStatus(att);
 }
 
 async function startBusLocationTracking(bus, driver) {
