@@ -1820,8 +1820,8 @@ async function showBusManagement() {
         <td>${studentCount}</td>
         <td><span class="status-pill">${escapeHtml(b.status || 'Active')}</span></td>
         <td class="table-actions">
-          <button type="button" class="btn btn-sm btn-secondary" onclick="editBus(${JSON.stringify(b.id)})">Edit</button>
-          <button type="button" class="btn btn-sm btn-danger" onclick="deleteBus(${JSON.stringify(b.id)})">Delete</button>
+          <button type="button" class="btn btn-sm btn-secondary" data-bus-edit="${escapeHtml(b.id)}">Edit</button>
+          <button type="button" class="btn btn-sm btn-danger" data-bus-delete="${escapeHtml(b.id)}">Delete</button>
         </td>
       </tr>`;
     });
@@ -1876,6 +1876,13 @@ async function showBusManagement() {
       e.preventDefault();
       await saveBusForm(null);
     };
+
+    featureDiv.querySelectorAll('[data-bus-edit]').forEach(btn => {
+      btn.addEventListener('click', () => window.editBus(btn.getAttribute('data-bus-edit')));
+    });
+    featureDiv.querySelectorAll('[data-bus-delete]').forEach(btn => {
+      btn.addEventListener('click', () => window.deleteBus(btn.getAttribute('data-bus-delete')));
+    });
   } catch (e) {
     console.error(e);
     featureDiv.innerHTML = '<div class="error-message">Error loading buses.</div>';
