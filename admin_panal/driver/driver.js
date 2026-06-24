@@ -1,5 +1,5 @@
 // Driver Portal JS
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, collection, query, where, getDocs, setDoc, doc, updateDoc, serverTimestamp, getDoc, addDoc } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { app } from '../common/firebase-init.js';
 import { getApiBase } from '../common/config.js';
@@ -9,10 +9,20 @@ import {
   renderNotificationsLoading,
   renderNotificationsError,
 } from '../common/notifications-ui.js';
+import { onAuthChange, logout, loadUserProfile } from '../common/auth.js';
 
 const auth = getAuth(app);
 const db = getFirestore(app);
 const mainDiv = document.getElementById('driver-main');
+let locationInterval = null;
+
+async function handleLogout() {
+  if (locationInterval) {
+    clearInterval(locationInterval);
+    locationInterval = null;
+  }
+  await logout();
+}
 
 function renderLogin(error = '') {
   mainDiv.innerHTML = `
@@ -39,12 +49,12 @@ async function renderDashboard(user) {
   const profile = await loadUserProfile(user);
   if (!profile) {
     mainDiv.innerHTML = `<div class="error">Driver profile not found. Ask admin to recreate your account from Users → Add New User.</div><button class="logout-btn" id="logout-btn">Logout</button>`;
-    document.getElementById('logout-btn').onclick = () => signOut(auth);
+    document.getElementById('logout-btn').onclick = () => { handleLogout(); };
     return;
   }
   if ((profile.role || '').trim().toLowerCase() !== 'driver') {
     mainDiv.innerHTML = `<div class="error">This account is not a driver (role: ${profile.role || 'unknown'}).</div><button class="logout-btn" id="logout-btn">Logout</button>`;
-    document.getElementById('logout-btn').onclick = () => signOut(auth);
+    document.getElementById('logout-btn').onclick = () => { handleLogout(); };
     return;
   }
   const driver = profile;
@@ -52,7 +62,7 @@ async function renderDashboard(user) {
   const busSnap = await getDocs(query(collection(db, 'buses'), where('driverId', '==', user.uid)));
   if (busSnap.empty) {
     mainDiv.innerHTML = `<div class="error">No bus assigned to you. Ask your school admin to open <strong>Admin → Buses &amp; Routes</strong> and assign you to a bus.</div><button class="logout-btn" id="logout-btn">Logout</button>`;
-    document.getElementById('logout-btn').onclick = () => signOut(auth);
+    document.getElementById('logout-btn').onclick = () => { handleLogout(); };
     return;
   }
   const busDoc = busSnap.docs[0];
@@ -81,10 +91,7 @@ async function renderDashboard(user) {
     </div>
     <button class="logout-btn" id="logout-btn">Logout</button>
   `;
-  document.getElementById('logout-btn').onclick = () => {
-    if (locationInterval) clearInterval(locationInterval);
-    signOut(auth);
-  };
+  document.getElementById('logout-btn').onclick = () => { handleLogout(); };
   // Attach event listeners for attendance
   students.forEach(s => {
     document.querySelector(`#student-${s.id} .picked-btn`).onclick = () => markAttendance(bus, s, 'picked');
@@ -213,8 +220,6 @@ async function showNotifications() {
     );
   }
 }
-
-import { onAuthChange, logout, loadUserProfile } from '../common/auth.js';
 
 // Use role-based authentication
 onAuthChange(renderPortal, 'driver');
