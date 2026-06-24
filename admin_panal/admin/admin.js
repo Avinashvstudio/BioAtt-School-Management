@@ -87,6 +87,59 @@ async function fetchTeachers() {
   return teachers;
 }
 
+async function fetchDrivers() {
+  const snap = await getDocs(collection(db, 'users'));
+  const drivers = [];
+  snap.forEach(d => {
+    const u = d.data();
+    if ((u.role || '').trim().toLowerCase() !== 'driver') return;
+    drivers.push({ id: d.id, name: u.name || u.email || d.id, email: u.email || '' });
+  });
+  return drivers.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function busDocId(number) {
+  const n = (number || '').trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
+  return n ? `bus_${n}` : `bus_${Date.now()}`;
+}
+
+async function studentsLinkedToBus(busNumber) {
+  const label = (busNumber || '').trim();
+  if (!label) return { studentIds: [], students: [] };
+  const snap = await getDocs(collection(db, 'students'));
+  const studentIds = [];
+  const students = [];
+  snap.forEach(d => {
+    const s = d.data();
+    if ((s.bus || '').trim() !== label) return;
+    studentIds.push(d.id);
+    students.push({
+      id: d.id,
+      name: s.name || d.id,
+      parentEmail: s.parentEmail || '',
+      class: s.class || '',
+      section: s.section || '',
+    });
+  });
+  students.sort((a, b) => a.name.localeCompare(b.name));
+  return { studentIds, students };
+}
+
+async function refreshBusStudentListsForNumber(busNumber) {
+  const label = (busNumber || '').trim();
+  if (!label) return;
+  const busSnap = await getDocs(query(collection(db, 'buses'), where('number', '==', label)));
+  if (busSnap.empty) return;
+  const { studentIds, students } = await studentsLinkedToBus(label);
+  await Promise.all(busSnap.docs.map(d =>
+    setDoc(doc(db, 'buses', d.id), {
+      studentIds,
+      students,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true })
+  ));
+}
+
 async function fetchClassesList() {
   const snap = await getDocs(collection(db, 'classes'));
   const list = [];
@@ -351,6 +404,10 @@ function renderDashboard(user) {
           <button class="nav-btn" id="nav-notifications" type="button">
             <span class="nav-icon">🔔</span> Notifications
           </button>
+          <div class="nav-section-label">Transport</div>
+          <button class="nav-btn" id="nav-buses" type="button">
+            <span class="nav-icon">🚌</span> Buses & Routes
+          </button>
           <div class="nav-section-label">System</div>
           <button class="nav-btn" id="nav-reports" type="button">
             <span class="nav-icon">📈</span> Reports
@@ -376,6 +433,7 @@ function renderDashboard(user) {
      { id: 'nav-attendance', section: 'attendance', fn: showAttendanceManagement },
      { id: 'nav-users', section: 'users', fn: showUserManagement },
      { id: 'nav-notifications', section: 'notifications', fn: showNotificationManagement },
+     { id: 'nav-buses', section: 'buses', fn: showBusManagement },
      { id: 'nav-reports', section: 'reports', fn: showReports },
      { id: 'nav-settings', section: 'settings', fn: showSettings },
    ];
@@ -408,6 +466,7 @@ function setActiveNav(section) {
     'nav-exams',
     'nav-attendance',
     'nav-notifications',
+    'nav-buses',
     'nav-reports',
     'nav-settings',
   ].forEach(id => {
@@ -844,7 +903,7 @@ async function showAddUserForm() {
           </div>
           <div class="form-group driver-fields" id="driver-hint-group" style="display:none;grid-column:1/-1">
             <label>Bus assignment</label>
-            <p class="form-hint">After creating the driver, add or edit a bus in Firebase / demo data and set <em>driverId</em> to this driver's UID (shown in Users list after save).</p>
+            <p class="form-hint">After creating the driver, open <strong>Buses &amp; Routes</strong> and assign this driver to a bus. Students are linked when their <em>Bus</em> field on the student record matches the bus number.</p>
           </div>
         </div>
         <div class="form-actions">
@@ -1188,6 +1247,7 @@ async function showAddStudentForm() {
         bus: bus || '',
         createdAt: new Date().toISOString()
       });
+      if (bus) await refreshBusStudentListsForNumber(bus);
       
       toast('Student added successfully.', 'success');
       showStudentManagement();
@@ -1732,6 +1792,135 @@ async function showNotificationManagement() {
   }
 }
 
+async function showBusManagement() {
+  setActiveNav('buses');
+  const featureDiv = document.getElementById('feature-content');
+  featureDiv.innerHTML = '<div class="loading">Loading buses...</div>';
+
+  try {
+    const [busSnap, drivers] = await Promise.all([
+      getDocs(collection(db, 'buses')),
+      fetchDrivers(),
+    ]);
+
+    const buses = [];
+    busSnap.forEach(d => buses.push({ id: d.id, ...d.data() }));
+    buses.sort((a, b) => (a.number || '').localeCompare(b.number || ''));
+
+    const driverById = Object.fromEntries(drivers.map(d => [d.id, d]));
+
+    let rows = '';
+    buses.forEach(b => {
+      const driverLabel = b.driverName || (driverById[b.driverId]?.name) || '—';
+      const studentCount = (b.students && b.students.length) || (b.studentIds && b.studentIds.length) || 0;
+      rows += `<tr>
+        <td>${escapeHtml(b.number || '—')}</td>
+        <td>${escapeHtml(b.route || '—')}</td>
+        <td>${escapeHtml(driverLabel)}</td>
+        <td>${studentCount}</td>
+        <td><span class="status-pill">${escapeHtml(b.status || 'Active')}</span></td>
+        <td class="table-actions">
+          <button type="button" class="btn btn-sm btn-secondary" onclick="editBus(${JSON.stringify(b.id)})">Edit</button>
+          <button type="button" class="btn btn-sm btn-danger" onclick="deleteBus(${JSON.stringify(b.id)})">Delete</button>
+        </td>
+      </tr>`;
+    });
+
+    const driverOptions = drivers.length
+      ? drivers.map(d =>
+          `<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)} (${escapeHtml(d.email)})</option>`
+        ).join('')
+      : '<option value="" disabled>No drivers — add one under Users</option>';
+
+    featureDiv.innerHTML = `
+      <div class="page-header">
+        <h1>Buses & Routes</h1>
+        <p>Assign drivers and routes. Students are linked when their <em>Bus</em> field (on the student record) matches the bus number.</p>
+      </div>
+      <div class="card">
+        <h2>Add bus</h2>
+        <form id="add-bus-form" class="form-grid">
+          <div class="form-group">
+            <label for="bus-number">Bus number</label>
+            <input type="text" id="bus-number" placeholder="e.g. Bus 1" required>
+          </div>
+          <div class="form-group">
+            <label for="bus-route">Route name</label>
+            <input type="text" id="bus-route" placeholder="e.g. North Route" required>
+          </div>
+          <div class="form-group">
+            <label for="bus-driver">Driver</label>
+            <select id="bus-driver" required>
+              <option value="">Select driver…</option>
+              ${driverOptions}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="bus-capacity">Capacity</label>
+            <input type="number" id="bus-capacity" min="1" max="100" value="40">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <button type="submit" class="btn btn-primary">Save bus</button>
+          </div>
+        </form>
+      </div>
+      <div class="table-container" style="margin-top:1.5rem">
+        <table class="data-table">
+          <thead><tr><th>Bus</th><th>Route</th><th>Driver</th><th>Students</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="6" class="empty-state">No buses yet. Add one above.</td></tr>'}</tbody>
+        </table>
+      </div>
+    `;
+
+    document.getElementById('add-bus-form').onsubmit = async (e) => {
+      e.preventDefault();
+      await saveBusForm(null);
+    };
+  } catch (e) {
+    console.error(e);
+    featureDiv.innerHTML = '<div class="error-message">Error loading buses.</div>';
+  }
+}
+
+async function saveBusForm(editingId) {
+  const numberEl = document.getElementById('bus-number');
+  const routeEl = document.getElementById('bus-route');
+  const driverEl = document.getElementById('bus-driver');
+  const capacityEl = document.getElementById('bus-capacity');
+  if (!numberEl || !routeEl || !driverEl) return;
+
+  const number = numberEl.value.trim();
+  const route = routeEl.value.trim();
+  const driverId = driverEl.value;
+  const capacity = parseInt(capacityEl?.value, 10) || 40;
+
+  if (!number || !route || !driverId) {
+    toast('Bus number, route, and driver are required.', 'error');
+    return;
+  }
+
+  const drivers = await fetchDrivers();
+  const driver = drivers.find(d => d.id === driverId);
+  const { studentIds, students } = await studentsLinkedToBus(number);
+
+  const busData = {
+    number,
+    route,
+    driverId,
+    driverName: driver ? driver.name : '',
+    capacity,
+    status: 'Active',
+    studentIds,
+    students,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const docId = editingId || busDocId(number);
+  await setDoc(doc(db, 'buses', docId), busData, { merge: true });
+  toast(editingId ? 'Bus updated.' : 'Bus added.', 'success');
+  showBusManagement();
+}
+
 async function showAttendanceManagement() {
   setActiveNav('attendance');
   const featureDiv = document.getElementById('feature-content');
@@ -2075,14 +2264,18 @@ window.editStudent = async function(studentId) {
           toast('Select a class and section.', 'error');
           return;
         }
+        const newBus = normalizeClassName(document.getElementById('edit-stu-bus').value);
+        const oldBus = (s.bus || '').trim();
         await updateDocOrAdmin('students', studentId, {
           name: normalizeClassName(document.getElementById('edit-stu-name').value),
           class: className,
           section,
           parentEmail,
-          bus: normalizeClassName(document.getElementById('edit-stu-bus').value),
+          bus: newBus,
           updatedAt: new Date().toISOString()
         });
+        if (newBus) await refreshBusStudentListsForNumber(newBus);
+        if (oldBus && oldBus !== newBus) await refreshBusStudentListsForNumber(oldBus);
         toast('Student updated.', 'success');
         showStudentManagement();
       } catch (error) {
@@ -2318,6 +2511,83 @@ window.deleteNotification = async function(notifId) {
   showNotificationManagement();
 };
 
+window.editBus = async function(busId) {
+  setActiveNav('buses');
+  const featureDiv = document.getElementById('feature-content');
+  featureDiv.innerHTML = '<div class="loading">Loading bus...</div>';
+  try {
+    const [busDoc, drivers] = await Promise.all([
+      getDoc(doc(db, 'buses', busId)),
+      fetchDrivers(),
+    ]);
+    if (!busDoc.exists()) {
+      toast('Bus not found.', 'error');
+      showBusManagement();
+      return;
+    }
+    const bus = busDoc.data();
+    const driverOptions = drivers.map(d => {
+      const selected = d.id === bus.driverId ? ' selected' : '';
+      return `<option value="${escapeHtml(d.id)}"${selected}>${escapeHtml(d.name)} (${escapeHtml(d.email)})</option>`;
+    }).join('');
+
+    featureDiv.innerHTML = `
+      <div class="page-header">
+        <h1>Edit bus</h1>
+        <p>Update route, driver, or bus number. Student list refreshes from student records on save.</p>
+      </div>
+      <div class="card">
+        <form id="edit-bus-form" class="form-grid">
+          <div class="form-group">
+            <label for="bus-number">Bus number</label>
+            <input type="text" id="bus-number" value="${escapeHtml(bus.number || '')}" required>
+          </div>
+          <div class="form-group">
+            <label for="bus-route">Route name</label>
+            <input type="text" id="bus-route" value="${escapeHtml(bus.route || '')}" required>
+          </div>
+          <div class="form-group">
+            <label for="bus-driver">Driver</label>
+            <select id="bus-driver" required>
+              <option value="">Select driver…</option>
+              ${driverOptions}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="bus-capacity">Capacity</label>
+            <input type="number" id="bus-capacity" min="1" max="100" value="${bus.capacity || 40}">
+          </div>
+          <div class="form-group" style="grid-column:1/-1;display:flex;gap:0.75rem;flex-wrap:wrap">
+            <button type="submit" class="btn btn-primary">Save changes</button>
+            <button type="button" class="btn btn-secondary" id="cancel-edit-bus">Cancel</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    document.getElementById('edit-bus-form').onsubmit = async (e) => {
+      e.preventDefault();
+      await saveBusForm(busId);
+    };
+    document.getElementById('cancel-edit-bus').onclick = () => showBusManagement();
+  } catch (e) {
+    console.error(e);
+    toast('Error loading bus.', 'error');
+    showBusManagement();
+  }
+};
+
+window.deleteBus = async function(busId) {
+  if (!confirm('Delete this bus? The assigned driver will see "No bus assigned" until you create a new one.')) return;
+  try {
+    await deleteDocOrAdmin('buses', busId);
+    toast('Bus deleted.', 'success');
+    showBusManagement();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+};
+
 window.deleteTimetableEntry = async function(entryId) {
   if (!confirm('Delete this timetable entry?')) return;
   try {
@@ -2500,6 +2770,7 @@ window.showClassManagement = showClassManagement;
 window.showTimetableManagement = showTimetableManagement;
 window.showExamManagement = showExamManagement;
 window.showNotificationManagement = showNotificationManagement;
+window.showBusManagement = showBusManagement;
 window.showAttendanceManagement = showAttendanceManagement;
 window.showReports = showReports;
 window.showSettings = showSettings;

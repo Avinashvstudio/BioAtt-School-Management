@@ -51,17 +51,19 @@ async function renderDashboard(user) {
   // Fetch bus info
   const busSnap = await getDocs(query(collection(db, 'buses'), where('driverId', '==', user.uid)));
   if (busSnap.empty) {
-    mainDiv.innerHTML = `<div class="error">No bus assigned to you.</div><button class="logout-btn" id="logout-btn">Logout</button>`;
+    mainDiv.innerHTML = `<div class="error">No bus assigned to you. Ask your school admin to open <strong>Admin → Buses &amp; Routes</strong> and assign you to a bus.</div><button class="logout-btn" id="logout-btn">Logout</button>`;
     document.getElementById('logout-btn').onclick = () => signOut(auth);
     return;
   }
-  const bus = busSnap.docs[0].data();
-  // Fetch students assigned to this bus
+  const busDoc = busSnap.docs[0];
+  const bus = { id: busDoc.id, ...busDoc.data() };
   let students = [];
-  if (bus.studentIds && bus.studentIds.length > 0) {
-    const studentQuery = query(collection(db, 'students'), where('__name__', 'in', bus.studentIds));
-    const studentsSnap = await getDocs(studentQuery);
-    students = studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  if (Array.isArray(bus.students) && bus.students.length > 0) {
+    students = bus.students.map(s => ({
+      id: s.id,
+      name: s.name || s.id,
+      parentEmail: s.parentEmail || '',
+    }));
   }
   mainDiv.innerHTML = `
     <div class="bus-info"><b>Bus:</b> ${bus.number || ''} <br><b>Route:</b> ${bus.route || ''}</div>
@@ -104,43 +106,37 @@ async function markAttendance(bus, student, type) {
   update.date = today;
   await setDoc(attRef, update, { merge: true });
 
-  // Send notification to parent
-  // Fetch parent email from student record
-  const stuDoc = await getDoc(doc(db, 'students', student.id));
-  if (stuDoc.exists()) {
-    const s = stuDoc.data();
-    if (s.parentEmail) {
-      let notifTitle = '';
-      let notifMsg = '';
-      if (type === 'picked') {
-        notifTitle = 'Bus Pickup Notification';
-        notifMsg = `${s.name} has been picked up by the bus.`;
-      } else if (type === 'dropped') {
-        notifTitle = 'Bus Drop Notification';
-        notifMsg = `${s.name} has been dropped off by the bus.`;
-      }
-      await addDoc(collection(db, 'notifications'), {
-        title: notifTitle,
-        message: notifMsg,
-        recipientEmail: s.parentEmail,
-        recipientRole: 'parent',
-        studentId: student.id,
-        timestamp: Date.now(),
-        busNumber: bus.number
-      });
-      // Send email to parent as well
-      fetch(`${getApiBase()}/send-bus-notification-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          parent_email: s.parentEmail,
-          student_name: s.name,
-          type: type, // 'picked' or 'dropped'
-          bus_number: bus.number,
-          timestamp: new Date().toLocaleString()
-        })
-      });
+  const parentEmail = student.parentEmail;
+  if (parentEmail) {
+    let notifTitle = '';
+    let notifMsg = '';
+    if (type === 'picked') {
+      notifTitle = 'Bus Pickup Notification';
+      notifMsg = `${student.name} has been picked up by the bus.`;
+    } else if (type === 'dropped') {
+      notifTitle = 'Bus Drop Notification';
+      notifMsg = `${student.name} has been dropped off by the bus.`;
     }
+    await addDoc(collection(db, 'notifications'), {
+      title: notifTitle,
+      message: notifMsg,
+      recipientEmail: parentEmail,
+      recipientRole: 'parent',
+      studentId: student.id,
+      timestamp: Date.now(),
+      busNumber: bus.number
+    });
+    fetch(`${getApiBase()}/send-bus-notification-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parent_email: parentEmail,
+        student_name: student.name,
+        type: type,
+        bus_number: bus.number,
+        timestamp: new Date().toLocaleString()
+      })
+    });
   }
 
   loadLastStatus(bus, student);
